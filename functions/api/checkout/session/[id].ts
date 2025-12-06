@@ -44,10 +44,22 @@ export const onRequestGet = async (context: {
         ? session.payment_intent
         : null;
 
+    const customerAddress = session.customer_details?.address || null;
+
     const shippingDetails =
       (session.shipping_details as Stripe.Checkout.Session.ShippingDetails | null) ||
       paymentIntent?.shipping ||
-      null;
+      (customerAddress
+        ? {
+            name: session.customer_details?.name ?? null,
+            address: customerAddress,
+          }
+        : null);
+
+    const shippingName =
+      (shippingDetails as any)?.name ?? session.customer_details?.name ?? null;
+    const shippingAddress =
+      (shippingDetails as any)?.address ?? customerAddress ?? null;
 
     const cardFromCharges =
       paymentIntent?.charges?.data?.[0]?.payment_method_details &&
@@ -88,10 +100,12 @@ export const onRequestGet = async (context: {
       amount_total: session.amount_total ?? 0,
       currency: session.currency ?? 'usd',
       customer_email: session.customer_details?.email ?? paymentIntent?.receipt_email ?? null,
-      shipping: {
-        name: shippingDetails?.name ?? session.customer_details?.name ?? null,
-        address: shippingDetails?.address ?? null,
-      },
+      shipping: shippingAddress
+        ? {
+            name: shippingName,
+            address: shippingAddress,
+          }
+        : null,
       line_items: lineItems,
       card_last4: cardLast4,
       card_brand: cardBrand,

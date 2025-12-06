@@ -80,16 +80,51 @@ export const onRequestPost = async (context: {
         null;
       const shippingAddress = shippingDetails?.address || null;
 
+      const firstCharge = paymentIntent?.charges?.data?.[0];
+      console.log(
+        'PI first charge method details (safe)',
+        JSON.stringify(
+          firstCharge?.payment_method_details
+            ? {
+                type: firstCharge.payment_method_details.type,
+                card:
+                  firstCharge.payment_method_details.type === 'card'
+                    ? {
+                        brand: (firstCharge.payment_method_details as any).card?.brand ?? null,
+                        last4: (firstCharge.payment_method_details as any).card?.last4 ?? null,
+                      }
+                    : undefined,
+                us_bank_account:
+                  firstCharge.payment_method_details.type === 'us_bank_account'
+                    ? {
+                        bank_name: (firstCharge.payment_method_details as any).us_bank_account?.bank_name ?? null,
+                        last4: (firstCharge.payment_method_details as any).us_bank_account?.last4 ?? null,
+                      }
+                    : undefined,
+              }
+            : null,
+          null,
+          2
+        )
+      );
+
       let cardLast4: string | null = null;
       let cardBrand: string | null = null;
 
       if (paymentIntent?.charges?.data?.length) {
         const charge = paymentIntent.charges.data[0];
-        const details = charge.payment_method_details as Stripe.Charge.PaymentMethodDetails | undefined;
-        const card = (details as any)?.card;
-        if (card) {
-          cardLast4 = card.last4 ?? null;
-          cardBrand = card.brand ?? null;
+        const pmd = charge.payment_method_details as any;
+
+        if (pmd?.card) {
+          cardLast4 = pmd.card.last4 ?? null;
+          cardBrand = pmd.card.brand ?? null;
+        } else if (pmd?.link?.card) {
+          // Link payment backed by a card
+          cardLast4 = pmd.link.card.last4 ?? null;
+          cardBrand = pmd.link.card.brand ?? null;
+        } else if (pmd?.us_bank_account) {
+          cardLast4 = pmd.us_bank_account.last4 ?? null;
+          cardBrand = pmd.us_bank_account.bank_name ?? 'us_bank_account';
         }
       }
 
