@@ -25,7 +25,7 @@ export const onRequestGet = async (context: {
 
   const sessionId = params?.id;
   if (!sessionId) {
-    return json({ error: 'session id is required' }, 400);
+    return json({ error: 'Missing session ID' }, 400);
   }
 
   try {
@@ -40,23 +40,27 @@ export const onRequestGet = async (context: {
     const lineItems =
       session.line_items?.data.map((li) => ({
         productName:
-          (typeof li.price?.product === 'object' && li.price?.product
-            ? (li.price.product as Stripe.Product).name
-            : undefined) ||
-          (typeof li.price?.product === 'string' ? li.price.product : 'Item'),
+          (li.price?.product &&
+          typeof li.price.product !== 'string' &&
+          (li.price.product as Stripe.Product).name) ||
+          li.description ||
+          'Item',
         quantity: li.quantity ?? 0,
         lineTotal: li.amount_total ?? 0,
       })) ?? [];
 
     const cardLast4 =
-      session.payment_intent && typeof session.payment_intent !== 'string'
-        ? (session.payment_intent.payment_method as any)?.card?.last4 ?? null
+      session.payment_intent &&
+      typeof session.payment_intent !== 'string' &&
+      session.payment_intent.payment_method &&
+      typeof session.payment_intent.payment_method !== 'string'
+        ? (session.payment_intent.payment_method as any).card?.last4 ?? null
         : null;
 
     return json({
       id: session.id,
-      amount_total: session.amount_total,
-      currency: session.currency,
+      amount_total: session.amount_total ?? 0,
+      currency: session.currency ?? 'usd',
       customer_email: session.customer_details?.email ?? null,
       shipping: {
         name: session.shipping?.name ?? null,
@@ -66,7 +70,7 @@ export const onRequestGet = async (context: {
       card_last4: cardLast4,
     });
   } catch (error) {
-    console.error('Failed to retrieve checkout session', error);
-    return json({ error: 'Failed to fetch checkout session' }, 500);
+    console.error('Error in checkout session endpoint', error);
+    return json({ error: 'Failed to load checkout session' }, 500);
   }
 };
