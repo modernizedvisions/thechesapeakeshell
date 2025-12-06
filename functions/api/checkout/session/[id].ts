@@ -34,8 +34,34 @@ export const onRequestGet = async (context: {
       expand: [
         'line_items.data.price.product',
         'payment_intent.payment_method',
+        'payment_intent.charges.data.payment_method_details',
+        'payment_intent.shipping',
       ],
     });
+
+    const paymentIntent =
+      session.payment_intent && typeof session.payment_intent !== 'string'
+        ? session.payment_intent
+        : null;
+
+    const shippingDetails =
+      (session.shipping_details as Stripe.Checkout.Session.ShippingDetails | null) ||
+      paymentIntent?.shipping ||
+      null;
+
+    const cardFromCharges =
+      paymentIntent?.charges?.data?.[0]?.payment_method_details &&
+      (paymentIntent.charges.data[0].payment_method_details as any).card
+        ? (paymentIntent.charges.data[0].payment_method_details as any).card
+        : null;
+
+    const cardFromPaymentMethod =
+      paymentIntent?.payment_method && typeof paymentIntent.payment_method !== 'string'
+        ? (paymentIntent.payment_method as Stripe.PaymentMethod).card
+        : null;
+
+    const cardLast4 = cardFromCharges?.last4 ?? cardFromPaymentMethod?.last4 ?? null;
+    const cardBrand = cardFromCharges?.brand ?? cardFromPaymentMethod?.brand ?? null;
 
     const lineItems =
       session.line_items?.data.map((li) => ({
@@ -61,13 +87,14 @@ export const onRequestGet = async (context: {
       id: session.id,
       amount_total: session.amount_total ?? 0,
       currency: session.currency ?? 'usd',
-      customer_email: session.customer_details?.email ?? null,
+      customer_email: session.customer_details?.email ?? paymentIntent?.receipt_email ?? null,
       shipping: {
-        name: session.shipping?.name ?? null,
-        address: session.shipping?.address ?? null,
+        name: shippingDetails?.name ?? session.customer_details?.name ?? null,
+        address: shippingDetails?.address ?? null,
       },
       line_items: lineItems,
       card_last4: cardLast4,
+      card_brand: cardBrand,
     });
   } catch (error) {
     console.error('Error in checkout session endpoint', error);

@@ -17,6 +17,7 @@ export interface CheckoutSessionInfo {
     lineTotal: number;
   }[];
   cardLast4: string | null;
+  cardBrand?: string | null;
 }
 
 export async function createEmbeddedCheckoutSession(productId: string, quantity = 1): Promise<EmbeddedCheckoutSession> {
@@ -74,6 +75,7 @@ export async function fetchCheckoutSession(sessionId: string): Promise<CheckoutS
         }))
       : [],
     cardLast4: data.card_last4 ?? null,
+    cardBrand: data.card_brand ?? null,
   };
 }
 

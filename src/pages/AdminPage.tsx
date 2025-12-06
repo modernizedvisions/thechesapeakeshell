@@ -513,8 +513,8 @@ export function AdminPage() {
                           {new Date(order.createdAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          <div>{order.customer?.name}</div>
-                          <div className="text-gray-500">{order.customer?.email}</div>
+                          <div>{order.shippingName || 'Customer'}</div>
+                          <div className="text-gray-500">{order.customerEmail || 'No email'}</div>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {order.items?.length || 0} items
@@ -524,7 +524,7 @@ export function AdminPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                            {order.status}
+                            Paid
                           </span>
                         </td>
                       </tr>

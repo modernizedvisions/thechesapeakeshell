@@ -11,6 +11,10 @@ export type AdminOrder = {
   totalCents: number;
   customerEmail: string | null;
   shippingName: string | null;
+  customerName: string | null;
+  shippingAddress: Record<string, any> | null;
+  cardLast4?: string | null;
+  cardBrand?: string | null;
   items: AdminOrderItem[];
 };
 

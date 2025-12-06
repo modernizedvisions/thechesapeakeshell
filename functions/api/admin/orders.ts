@@ -14,6 +14,8 @@ type OrderRow = {
   customer_email: string | null;
   shipping_name: string | null;
   shipping_address_json: string | null;
+  card_last4?: string | null;
+  card_brand?: string | null;
   created_at: string;
 };
 
@@ -28,10 +30,23 @@ type OrderItemRow = {
 
 export const onRequestGet = async (context: { env: { DB: D1Database } }): Promise<Response> => {
   try {
-    const ordersStmt = context.env.DB.prepare(
-      `SELECT * FROM orders ORDER BY created_at DESC LIMIT 20;`
-    );
-    const { results: orderRows } = await ordersStmt.all<OrderRow>();
+    let orderRows: OrderRow[] = [];
+    // First try selecting card fields (may not exist in older schema).
+    try {
+      const ordersWithCardStmt = context.env.DB.prepare(
+        `SELECT id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, created_at
+         FROM orders ORDER BY created_at DESC LIMIT 20;`
+      );
+      const res = await ordersWithCardStmt.all<OrderRow>();
+      orderRows = res.results || [];
+    } catch {
+      const fallbackStmt = context.env.DB.prepare(
+        `SELECT id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, created_at
+         FROM orders ORDER BY created_at DESC LIMIT 20;`
+      );
+      const res = await fallbackStmt.all<OrderRow>();
+      orderRows = res.results || [];
+    }
 
     const orderIds = (orderRows || []).map((o) => o.id);
     let itemsByOrder: Record<string, OrderItemRow[]> = {};
@@ -60,6 +75,10 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
       totalCents: o.total_cents ?? 0,
       customerEmail: o.customer_email,
       shippingName: o.shipping_name,
+      customerName: o.shipping_name,
+      shippingAddress: o.shipping_address_json ? safeParseAddress(o.shipping_address_json) : null,
+      cardLast4: o.card_last4 ?? null,
+      cardBrand: o.card_brand ?? null,
       items: (itemsByOrder[o.id] || []).map((i) => ({
         productId: i.product_id,
         productName: i.product_name,
@@ -80,3 +99,16 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
     });
   }
 };
+
+function safeParseAddress(jsonString: string | null): Record<string, string | null> | null {
+  if (!jsonString) return null;
+  try {
+    const parsed = JSON.parse(jsonString);
+    if (parsed && typeof parsed === 'object') {
+      return parsed as Record<string, string | null>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

@@ -25,8 +25,14 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_email TEXT,
   shipping_name TEXT,
   shipping_address_json TEXT,
+  card_last4 TEXT,
+  card_brand TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration for existing databases (run via Wrangler once per environment):
+-- ALTER TABLE orders ADD COLUMN card_last4 TEXT;
+-- ALTER TABLE orders ADD COLUMN card_brand TEXT;
 
 CREATE TABLE IF NOT EXISTS order_items (
   id TEXT PRIMARY KEY,
