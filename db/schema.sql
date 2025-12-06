@@ -6,7 +6,15 @@ CREATE TABLE IF NOT EXISTS products (
   price_cents INTEGER,
   category TEXT,
   image_url TEXT,
+  -- Extended fields for inventory + Stripe wiring
+  image_urls_json TEXT,
   is_active INTEGER DEFAULT 1,
+  is_one_off INTEGER DEFAULT 1,
+  is_sold INTEGER DEFAULT 0,
+  quantity_available INTEGER DEFAULT 1,
+  stripe_price_id TEXT,
+  stripe_product_id TEXT,
+  collection TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchHomeHeroConfig, fetchProducts } from '../lib/api';
-import { GalleryImage, HeroConfig, Product } from '../lib/types';
+import { HeroConfig, Product } from '../lib/types';
 import { useCartStore } from '../store/cartStore';
 import { SocialSection } from '../components/SocialSection';
 import { ContactForm } from '../components/ContactForm';

@@ -5,6 +5,12 @@ import {
   getSoldProducts,
 } from './db/products';
 import {
+  fetchAdminProducts,
+  createAdminProduct,
+  updateAdminProduct,
+  deleteAdminProduct,
+} from './db/adminProducts';
+import {
   getGalleryImages,
   getHomeHeroConfig,
   saveGalleryImages as persistGalleryImages,
@@ -24,6 +30,10 @@ export const fetchProductById = getProductById;
 export const fetchRelatedProducts = getRelatedProducts;
 export const fetchOrders = getOrders;
 export const fetchSoldProducts = getSoldProducts;
+export const adminFetchProducts = fetchAdminProducts;
+export const adminCreateProduct = createAdminProduct;
+export const adminUpdateProduct = updateAdminProduct;
+export const adminDeleteProduct = deleteAdminProduct;
 export const fetchGalleryImages = getGalleryImages;
 export const saveGalleryImages = persistGalleryImages;
 export const fetchHomeHeroConfig = getHomeHeroConfig;

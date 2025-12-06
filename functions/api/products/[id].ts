@@ -1,8 +1,9 @@
-import type { Product } from '../../src/lib/types';
+import type { Product } from '../../../src/lib/types';
 
 type D1PreparedStatement = {
-  all<T>(): Promise<{ results: T[] }>;
   run(): Promise<{ success: boolean; error?: string }>;
+  first<T>(): Promise<T | null>;
+  bind(...values: unknown[]): D1PreparedStatement;
 };
 
 type D1Database = {
@@ -28,57 +29,6 @@ type ProductRow = {
   created_at: string | null;
 };
 
-export async function onRequestGet(context: { env: { DB: D1Database }; request: Request }): Promise<Response> {
-  try {
-    await ensureProductSchema(context.env.DB);
-
-    const statement = context.env.DB.prepare(`
-      SELECT id, name, slug, description, price_cents, category, image_url, image_urls_json, is_active,
-             is_one_off, is_sold, quantity_available, stripe_price_id, stripe_product_id, collection, created_at
-      FROM products
-      WHERE is_active = 1 OR is_active IS NULL
-      ORDER BY created_at DESC;
-    `);
-
-    const { results } = await statement.all<ProductRow>();
-    const products: Product[] = (results || []).map((row) => {
-      const extraImages = row.image_urls_json ? safeParseJsonArray(row.image_urls_json) : [];
-      const primaryImage = row.image_url || extraImages[0] || '';
-
-      return {
-        id: row.id,
-        stripeProductId: row.stripe_product_id || row.id, // placeholder until Stripe linkage is added
-        stripePriceId: row.stripe_price_id || undefined,
-        name: row.name ?? '',
-        description: row.description ?? '',
-        imageUrls: primaryImage ? [primaryImage, ...extraImages.filter((url) => url !== primaryImage)] : extraImages,
-        imageUrl: primaryImage,
-        thumbnailUrl: primaryImage || undefined,
-        type: row.category ?? 'General',
-        collection: row.collection ?? row.category ?? undefined,
-        oneoff: row.is_one_off === null ? true : row.is_one_off === 1,
-        visible: row.is_active === null ? true : row.is_active === 1,
-        isSold: row.is_sold === 1,
-        priceCents: row.price_cents ?? undefined,
-        soldAt: undefined,
-        quantityAvailable: row.quantity_available ?? undefined,
-        slug: row.slug ?? undefined,
-      };
-    });
-
-    return new Response(JSON.stringify({ products }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    console.error('Failed to load products from D1', error);
-    return new Response(JSON.stringify({ error: 'Failed to load products' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
-
 const safeParseJsonArray = (value: string | null): string[] => {
   if (!value) return [];
   try {
@@ -88,6 +38,79 @@ const safeParseJsonArray = (value: string | null): string[] => {
     return [];
   }
 };
+
+const mapRowToProduct = (row: ProductRow): Product => {
+  const imageUrls = row.image_urls_json ? safeParseJsonArray(row.image_urls_json) : [];
+  const primaryImage = row.image_url || imageUrls[0] || '';
+
+  return {
+    id: row.id,
+    stripeProductId: row.stripe_product_id || row.id,
+    stripePriceId: row.stripe_price_id || undefined,
+    name: row.name ?? '',
+    description: row.description ?? '',
+    imageUrls: primaryImage ? [primaryImage, ...imageUrls.filter((url) => url !== primaryImage)] : imageUrls,
+    imageUrl: primaryImage,
+    thumbnailUrl: primaryImage || undefined,
+    type: row.category ?? 'General',
+    collection: row.collection ?? row.category ?? undefined,
+    oneoff: row.is_one_off === null ? true : row.is_one_off === 1,
+    visible: row.is_active === null ? true : row.is_active === 1,
+    isSold: row.is_sold === 1,
+    priceCents: row.price_cents ?? undefined,
+    soldAt: undefined,
+    quantityAvailable: row.quantity_available ?? undefined,
+    slug: row.slug ?? undefined,
+  };
+};
+
+export async function onRequestGet(context: {
+  env: { DB: D1Database };
+  params: Record<string, string>;
+}): Promise<Response> {
+  const idOrSlug = context.params?.id;
+  if (!idOrSlug) {
+    return new Response(JSON.stringify({ error: 'Product id is required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    await ensureProductSchema(context.env.DB);
+
+    const row = await context.env.DB.prepare(
+      `
+      SELECT id, name, slug, description, price_cents, category, image_url, image_urls_json, is_active,
+             is_one_off, is_sold, quantity_available, stripe_price_id, stripe_product_id, collection, created_at
+      FROM products
+      WHERE id = ? OR slug = ? OR stripe_product_id = ?
+      LIMIT 1;
+    `
+    )
+      .bind(idOrSlug, idOrSlug, idOrSlug)
+      .first<ProductRow>();
+
+    if (!row) {
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const product = mapRowToProduct(row);
+    return new Response(JSON.stringify({ product }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Failed to load product', error);
+    return new Response(JSON.stringify({ error: 'Failed to load product' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
 
 const REQUIRED_PRODUCT_COLUMNS: Record<string, string> = {
   image_urls_json: 'image_urls_json TEXT',

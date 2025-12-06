@@ -1,5 +1,6 @@
 import type { Product } from '../types';
 import { mockProducts } from './mockData';
+import { getLocalProducts } from './localProducts';
 
 const PRODUCTS_API_PATH = '/api/products';
 
@@ -34,7 +35,9 @@ export async function getActiveProducts(filters?: {
   visible?: boolean;
 }): Promise<Product[]> {
   const liveProducts = await fetchProductsFromApi();
-  let products = liveProducts ?? [...mockProducts];
+  const cachedProducts = getLocalProducts();
+  let products =
+    liveProducts && liveProducts.length ? liveProducts : cachedProducts && cachedProducts.length ? cachedProducts : [...mockProducts];
 
   if (filters?.visible !== undefined) {
     products = products.filter((p) => p.visible === filters.visible);
@@ -52,22 +55,38 @@ export async function getActiveProducts(filters?: {
 }
 
 export async function getProductById(productId: string): Promise<Product | null> {
-  const product = mockProducts.find(
+  try {
+    const response = await fetch(`/api/products/${productId}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data?.product) return data.product as Product;
+    }
+  } catch (error) {
+    console.error('Falling back to mock product by id', error);
+  }
+
+  const productFromLocal = getLocalProducts().find(
     (p) => p.id === productId || p.stripeProductId === productId
   );
+  if (productFromLocal) return productFromLocal;
+
+  const product = mockProducts.find((p) => p.id === productId || p.stripeProductId === productId);
   return product || null;
 }
 
 export async function getRelatedProducts(type: string, excludeProductId: string): Promise<Product[]> {
-  return mockProducts.filter(
+  const products = getLocalProducts();
+  const dataset = products.length ? products : mockProducts;
+  return dataset.filter(
     (p) =>
-      p.type === type &&
-      p.id !== excludeProductId &&
-      p.stripeProductId !== excludeProductId &&
-      !p.isSold
+      p.type === type && p.id !== excludeProductId && p.stripeProductId !== excludeProductId && !p.isSold
   );
 }
 
 export async function getSoldProducts(): Promise<Product[]> {
-  return mockProducts.filter((p) => p.isSold);
+  const products = getLocalProducts();
+  const dataset = products.length ? products : mockProducts;
+  return dataset.filter((p) => p.isSold);
 }

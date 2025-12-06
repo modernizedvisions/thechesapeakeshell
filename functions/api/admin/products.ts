@@ -1,0 +1,266 @@
+import type { Product } from '../../../src/lib/types';
+
+type D1PreparedStatement = {
+  all<T>(): Promise<{ results: T[] }>;
+  run(): Promise<{ success: boolean; error?: string; meta?: { changes?: number } }>;
+  first<T>(): Promise<T | null>;
+  bind(...values: unknown[]): D1PreparedStatement;
+};
+
+type D1Database = {
+  prepare(query: string): D1PreparedStatement;
+};
+
+type ProductRow = {
+  id: string;
+  name: string | null;
+  slug?: string | null;
+  description: string | null;
+  price_cents: number | null;
+  category: string | null;
+  image_url: string | null;
+  image_urls_json?: string | null;
+  is_active: number | null;
+  is_one_off?: number | null;
+  is_sold?: number | null;
+  quantity_available?: number | null;
+  stripe_price_id?: string | null;
+  stripe_product_id?: string | null;
+  collection?: string | null;
+  created_at: string | null;
+};
+
+type NewProductInput = {
+  name: string;
+  description: string;
+  priceCents: number;
+  category: string;
+  imageUrl: string;
+  imageUrls?: string[];
+  quantityAvailable?: number;
+  isOneOff?: boolean;
+  isActive?: boolean;
+  stripePriceId?: string;
+  stripeProductId?: string;
+  collection?: string;
+};
+
+const ALLOWED_CATEGORIES = ['Ring Dish', 'Wine Stopper', 'Decor', 'Ornaments'];
+
+const mapRowToProduct = (row: ProductRow): Product => {
+  const imageUrls = row.image_urls_json ? safeParseJsonArray(row.image_urls_json) : [];
+  const primaryImage = row.image_url || imageUrls[0] || '';
+
+  return {
+    id: row.id,
+    stripeProductId: row.stripe_product_id || row.id,
+    stripePriceId: row.stripe_price_id || undefined,
+    name: row.name ?? '',
+    description: row.description ?? '',
+    imageUrls: primaryImage ? [primaryImage, ...imageUrls.filter((url) => url !== primaryImage)] : imageUrls,
+    imageUrl: primaryImage,
+    thumbnailUrl: primaryImage || undefined,
+    type: row.category ?? 'General',
+    collection: row.collection ?? undefined,
+    oneoff: row.is_one_off === null ? true : row.is_one_off === 1,
+    visible: row.is_active === null ? true : row.is_active === 1,
+    isSold: row.is_sold === 1,
+    priceCents: row.price_cents ?? undefined,
+    soldAt: undefined,
+    quantityAvailable: row.quantity_available ?? undefined,
+    slug: row.slug ?? undefined,
+  };
+};
+
+const safeParseJsonArray = (value: string | null): string[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const toSlug = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '');
+
+const validateCategory = (category: string | undefined) =>
+  category && ALLOWED_CATEGORIES.includes(category);
+
+const validateNewProduct = (input: Partial<NewProductInput>) => {
+  if (!input.name || !input.description || input.priceCents === undefined || input.priceCents === null) {
+    return 'name, description, and priceCents are required';
+  }
+  if (input.priceCents < 0) {
+    return 'priceCents must be non-negative';
+  }
+  if (!validateCategory(input.category)) {
+    return `category must be one of: ${ALLOWED_CATEGORIES.join(', ')}`;
+  }
+  if (!input.imageUrl) {
+    return 'imageUrl is required';
+  }
+  return null;
+};
+
+const REQUIRED_PRODUCT_COLUMNS: Record<string, string> = {
+  image_urls_json: 'image_urls_json TEXT',
+  is_one_off: 'is_one_off INTEGER DEFAULT 1',
+  is_sold: 'is_sold INTEGER DEFAULT 0',
+  quantity_available: 'quantity_available INTEGER DEFAULT 1',
+  stripe_price_id: 'stripe_price_id TEXT',
+  stripe_product_id: 'stripe_product_id TEXT',
+  collection: 'collection TEXT',
+};
+
+const createProductsTable = `
+  CREATE TABLE IF NOT EXISTS products (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    slug TEXT,
+    description TEXT,
+    price_cents INTEGER,
+    category TEXT,
+    image_url TEXT,
+    image_urls_json TEXT,
+    is_active INTEGER DEFAULT 1,
+    is_one_off INTEGER DEFAULT 1,
+    is_sold INTEGER DEFAULT 0,
+    quantity_available INTEGER DEFAULT 1,
+    stripe_price_id TEXT,
+    stripe_product_id TEXT,
+    collection TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`;
+
+async function ensureProductSchema(db: D1Database) {
+  await db.prepare(createProductsTable).run();
+
+  for (const [name, ddl] of Object.entries(REQUIRED_PRODUCT_COLUMNS)) {
+    try {
+      await db.prepare(`ALTER TABLE products ADD COLUMN ${ddl};`).run();
+    } catch (error) {
+      const message = (error as Error)?.message || '';
+      if (!/duplicate column|already exists/i.test(message)) {
+        console.error(`Failed to add column ${name}`, error);
+      }
+    }
+  }
+}
+
+export async function onRequestGet(context: { env: { DB: D1Database }; request: Request }): Promise<Response> {
+  try {
+    await ensureProductSchema(context.env.DB);
+
+    const statement = context.env.DB.prepare(`
+      SELECT id, name, slug, description, price_cents, category, image_url, image_urls_json,
+             is_active, is_one_off, is_sold, quantity_available, stripe_price_id, stripe_product_id,
+             collection, created_at
+      FROM products
+      ORDER BY created_at DESC;
+    `);
+
+    const { results } = await statement.all<ProductRow>();
+    const products: Product[] = (results || []).map(mapRowToProduct);
+
+    return new Response(JSON.stringify({ products }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Error in GET /api/admin/products', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function onRequestPost(context: { env: { DB: D1Database }; request: Request }): Promise<Response> {
+  try {
+    const body = (await context.request.json()) as Partial<NewProductInput>;
+    const error = validateNewProduct(body);
+    if (error) {
+      return new Response(JSON.stringify({ error }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const id = crypto.randomUUID();
+    const slug = toSlug(body.name!);
+    const isOneOff = body.isOneOff ?? true;
+    const quantityAvailable = isOneOff ? 1 : Math.max(1, body.quantityAvailable ?? 1);
+    const isActive = body.isActive ?? true;
+
+    await ensureProductSchema(context.env.DB);
+
+    const statement = context.env.DB.prepare(
+      `
+      INSERT INTO products (
+        id, name, slug, description, price_cents, category, image_url, image_urls_json,
+        is_active, is_one_off, is_sold, quantity_available, stripe_price_id, stripe_product_id, collection
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    `
+    ).bind(
+      id,
+      body.name,
+      slug,
+      body.description,
+      body.priceCents,
+      body.category,
+      body.imageUrl,
+      body.imageUrls && body.imageUrls.length ? JSON.stringify(body.imageUrls) : null,
+      isActive ? 1 : 0,
+      isOneOff ? 1 : 0,
+      0,
+      quantityAvailable,
+      body.stripePriceId || null,
+      body.stripeProductId || null,
+      body.collection || null
+    );
+
+    // TODO: When Stripe is wired, create/update Stripe product + price and persist IDs here.
+    const result = await statement.run();
+    if (!result.success) {
+      throw new Error(result.error || 'Insert failed');
+    }
+
+    const inserted = await context.env.DB.prepare(
+      `
+      SELECT id, name, slug, description, price_cents, category, image_url, image_urls_json,
+             is_active, is_one_off, is_sold, quantity_available, stripe_price_id, stripe_product_id,
+             collection, created_at
+      FROM products WHERE id = ?;
+    `
+    )
+      .bind(id)
+      .first<ProductRow>();
+
+    const product = inserted ? mapRowToProduct(inserted) : null;
+
+    return new Response(JSON.stringify({ product }), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Error in POST /api/admin/products', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+export async function onRequest(context: { env: { DB: D1Database }; request: Request }): Promise<Response> {
+  const method = context.request.method.toUpperCase();
+  if (method === 'GET') return onRequestGet(context);
+  if (method === 'POST') return onRequestPost(context);
+  return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    status: 405,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}

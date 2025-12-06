@@ -2,6 +2,7 @@ export interface Product {
   id: string;
   stripeProductId: string;
   name: string;
+  slug?: string;
   description: string;
   imageUrls: string[];
   imageUrl: string;
@@ -9,6 +10,7 @@ export interface Product {
   type: string;
   collection?: string;
   oneoff: boolean;
+  quantityAvailable?: number;
   visible: boolean;
   isSold: boolean;
   stripePriceId?: string;

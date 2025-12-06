@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle, Eye, EyeOff, Loader2, Plus, Trash2, Upload } from 'lucide-react';
+import { CheckCircle, Eye, EyeOff, Loader2, Plus, Trash2, Upload, Pencil, X } from 'lucide-react';
 import {
   fetchGalleryImages,
   fetchHomeHeroConfig,
@@ -8,8 +8,52 @@ import {
   saveGalleryImages,
   saveHomeHeroConfig,
   verifyAdminPassword,
+  adminFetchProducts,
+  adminCreateProduct,
+  adminUpdateProduct,
+  adminDeleteProduct,
 } from '../lib/api';
 import { GalleryImage, HeroConfig, HeroImage, Order, Product } from '../lib/types';
+
+type ProductFormState = {
+  name: string;
+  description: string;
+  price: string;
+  category: 'Ring Dish' | 'Wine Stopper' | 'Decor' | 'Ornaments';
+  imageUrl: string;
+  imageUrls: string;
+  quantityAvailable: number;
+  isOneOff: boolean;
+  isActive: boolean;
+  collection?: string;
+  stripePriceId?: string;
+  stripeProductId?: string;
+};
+
+type ManagedImage = {
+  id: string;
+  url: string;
+  file?: File;
+  isPrimary: boolean;
+  isNew?: boolean;
+};
+
+const CATEGORY_OPTIONS: ProductFormState['category'][] = ['Ring Dish', 'Wine Stopper', 'Decor', 'Ornaments'];
+
+const initialProductForm: ProductFormState = {
+  name: '',
+  description: '',
+  price: '',
+  category: 'Ring Dish',
+  imageUrl: '',
+  imageUrls: '',
+  quantityAvailable: 1,
+  isOneOff: true,
+  isActive: true,
+  collection: '',
+  stripePriceId: '',
+  stripeProductId: '',
+};
 
 export function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -18,14 +62,25 @@ export function AdminPage() {
   const [error, setError] = useState('');
   const [orders, setOrders] = useState<Order[]>([]);
   const [soldProducts, setSoldProducts] = useState<Product[]>([]);
+  const [adminProducts, setAdminProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [heroConfig, setHeroConfig] = useState<HeroConfig>({ mainImage: null, gridImages: [] });
-  const [activeTab, setActiveTab] = useState<'orders' | 'sold' | 'gallery' | 'home'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'sold' | 'gallery' | 'home' | 'shop'>('orders');
   const [gallerySaveState, setGallerySaveState] = useState<'idle' | 'saving' | 'success'>('idle');
   const [homeSaveState, setHomeSaveState] = useState<'idle' | 'saving' | 'success'>('idle');
+  const [productSaveState, setProductSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [productMessage, setProductMessage] = useState<string>('');
+  const [productForm, setProductForm] = useState<ProductFormState>(initialProductForm);
+  const [editProductId, setEditProductId] = useState<string | null>(null);
+  const [editProductForm, setEditProductForm] = useState<ProductFormState | null>(null);
+  const [productImages, setProductImages] = useState<ManagedImage[]>([]);
+  const [editProductImages, setEditProductImages] = useState<ManagedImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const heroGridFileInputRef = useRef<HTMLInputElement | null>(null);
   const heroMainFileInputRef = useRef<HTMLInputElement | null>(null);
+  const productImageFileInputRef = useRef<HTMLInputElement | null>(null);
+  const editProductImageFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleSaveHeroConfig = async () => {
     setHomeSaveState('saving');
@@ -86,12 +141,235 @@ export function AdminPage() {
       mainImage: heroData.mainImage || null,
       gridImages: (heroData.gridImages || []).slice(0, 6),
     });
+    await loadAdminProducts();
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem('admin_token');
     setIsAuthenticated(false);
     setPassword('');
+  };
+
+  const loadAdminProducts = async () => {
+    setIsLoadingProducts(true);
+    try {
+      const data = await adminFetchProducts();
+      setAdminProducts(data);
+    } catch (err) {
+      console.error('Failed to load admin products', err);
+      setProductMessage('Could not load products. Showing latest known list.');
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  const handleProductFormChange = (field: keyof ProductFormState, value: string | number | boolean) => {
+    setProductForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEditFormChange = (field: keyof ProductFormState, value: string | number | boolean) => {
+    setEditProductForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const resetProductForm = () => {
+    setProductForm(initialProductForm);
+    setProductImages([]);
+  };
+
+  const addImages = (files: FileList | null, setImages: React.Dispatch<React.SetStateAction<ManagedImage[]>>) => {
+    if (!files) return;
+    const newEntries: ManagedImage[] = Array.from(files).map((file) => ({
+      id: crypto.randomUUID(),
+      url: URL.createObjectURL(file),
+      file,
+      isPrimary: false,
+      isNew: true,
+    }));
+    setImages((prev) => {
+      const combined = [...prev, ...newEntries];
+      if (!combined.some((img) => img.isPrimary) && combined.length > 0) {
+        combined[0].isPrimary = true;
+      }
+      return combined;
+    });
+  };
+
+  const setPrimaryImage = (
+    id: string,
+    setImages: React.Dispatch<React.SetStateAction<ManagedImage[]>>
+  ) => {
+    setImages((prev) => prev.map((img) => ({ ...img, isPrimary: img.id === id })));
+  };
+
+  const moveImage = (
+    id: string,
+    direction: 'up' | 'down',
+    setImages: React.Dispatch<React.SetStateAction<ManagedImage[]>>
+  ) => {
+    setImages((prev) => {
+      const idx = prev.findIndex((img) => img.id === id);
+      if (idx === -1) return prev;
+      const swapWith = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapWith < 0 || swapWith >= prev.length) return prev;
+      const newOrder = [...prev];
+      [newOrder[idx], newOrder[swapWith]] = [newOrder[swapWith], newOrder[idx]];
+      return newOrder;
+    });
+  };
+
+  const removeImage = (
+    id: string,
+    setImages: React.Dispatch<React.SetStateAction<ManagedImage[]>>
+  ) => {
+    setImages((prev) => {
+      const filtered = prev.filter((img) => img.id !== id);
+      if (filtered.length > 0 && !filtered.some((img) => img.isPrimary)) {
+        filtered[0].isPrimary = true;
+      }
+      return filtered;
+    });
+  };
+
+  const normalizeImageOrder = (images: ManagedImage[]): ManagedImage[] => {
+    if (!images.length) return images;
+    const primary = images.find((i) => i.isPrimary) || images[0];
+    return [primary, ...images.filter((i) => i.id !== primary.id)];
+  };
+
+  const uploadImage = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/api/admin/upload-image', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error(`Upload failed with status ${response.status}`);
+    }
+    const data = await response.json();
+    if (data.url) return data.url as string;
+    if (Array.isArray(data.urls) && data.urls.length > 0) return data.urls[0] as string;
+    throw new Error('Upload response missing url');
+  };
+
+  const resolveImageUrls = async (images: ManagedImage[]): Promise<{ imageUrl: string; imageUrls: string[] }> => {
+    const ordered = normalizeImageOrder(images);
+    const urls: string[] = [];
+
+    for (const img of ordered) {
+      if (img.file) {
+        const uploadedUrl = await uploadImage(img.file);
+        urls.push(uploadedUrl);
+      } else if (img.url) {
+        urls.push(img.url);
+      }
+    }
+
+    const primary = urls[0] || '';
+    return { imageUrl: primary, imageUrls: urls };
+  };
+
+  const startEditProduct = (product: Product) => {
+    setEditProductId(product.id);
+    setEditProductForm(productToFormState(product));
+    const urls = product.imageUrls && product.imageUrls.length > 0 ? product.imageUrls : (product.imageUrl ? [product.imageUrl] : []);
+    const managed: ManagedImage[] = urls.map((url, idx) => ({
+      id: `${product.id}-${idx}`,
+      url,
+      isPrimary: idx === 0,
+      isNew: false,
+    }));
+    setEditProductImages(managed);
+  };
+
+  const cancelEditProduct = () => {
+    setEditProductId(null);
+    setEditProductForm(null);
+    setEditProductImages([]);
+  };
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProductSaveState('saving');
+    setProductMessage('');
+
+    try {
+      const manualUrls = mergeManualImages(productForm);
+      const uploaded = productImages.length > 0 ? await resolveImageUrls(productImages) : manualUrls;
+      const mergedImages = mergeImages(uploaded, manualUrls);
+
+      const payload = {
+        ...formStateToPayload(productForm),
+        imageUrl: mergedImages.imageUrl,
+        imageUrls: mergedImages.imageUrls,
+      };
+
+      const created = await adminCreateProduct(payload);
+      if (created) {
+        setProductMessage('Product created.');
+        resetProductForm();
+        setProductImages([]);
+        await loadAdminProducts();
+        setProductSaveState('success');
+        setTimeout(() => setProductSaveState('idle'), 1500);
+      } else {
+        setProductSaveState('error');
+      }
+    } catch (err) {
+      console.error('Create product failed', err);
+      setProductMessage('Create failed. Please check inputs.');
+      setProductSaveState('error');
+      setTimeout(() => setProductSaveState('idle'), 1500);
+    }
+  };
+
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editProductId || !editProductForm) return;
+    setProductSaveState('saving');
+    setProductMessage('');
+
+    try {
+      const manualUrls = mergeManualImages(editProductForm);
+      const uploaded = editProductImages.length > 0 ? await resolveImageUrls(editProductImages) : manualUrls;
+      const mergedImages = mergeImages(uploaded, manualUrls);
+
+      const payload = {
+        ...formStateToPayload(editProductForm),
+        imageUrl: mergedImages.imageUrl,
+        imageUrls: mergedImages.imageUrls,
+      };
+
+      const updated = await adminUpdateProduct(editProductId, payload);
+      if (updated) {
+        setProductMessage('Product updated.');
+        setEditProductId(null);
+        setEditProductForm(null);
+        setEditProductImages([]);
+        await loadAdminProducts();
+        setProductSaveState('success');
+        setTimeout(() => setProductSaveState('idle'), 1500);
+      } else {
+        setProductSaveState('error');
+      }
+    } catch (err) {
+      console.error('Update product failed', err);
+      setProductMessage('Update failed. Please try again.');
+      setProductSaveState('error');
+      setTimeout(() => setProductSaveState('idle'), 1500);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    const confirmed = window.confirm('Delete this product?');
+    if (!confirmed) return;
+    try {
+      await adminDeleteProduct(id);
+      await loadAdminProducts();
+    } catch (err) {
+      console.error('Delete product failed', err);
+      setProductMessage('Delete failed.');
+    }
   };
 
   if (!isAuthenticated) {
@@ -187,6 +465,16 @@ export function AdminPage() {
               }`}
             >
               Home Page
+            </button>
+            <button
+              onClick={() => setActiveTab('shop')}
+              className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                activeTab === 'shop'
+                  ? 'border-gray-900 text-gray-900'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Shop
             </button>
           </nav>
         </div>
@@ -325,6 +613,424 @@ export function AdminPage() {
               description="Up to 6 images shown under the main hero."
               maxImages={6}
             />
+          </div>
+        )}
+
+        {activeTab === 'shop' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Shop / Products</h2>
+                  <p className="text-sm text-gray-600">Add, edit, and manage all products shown in the storefront.</p>
+                </div>
+              </div>
+
+              {productMessage && (
+                <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+                  {productMessage}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateProduct} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <input
+                      required
+                      value={productForm.name}
+                      onChange={(e) => handleProductFormChange('name', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={productForm.category}
+                      onChange={(e) => handleProductFormChange('category', e.target.value as ProductFormState['category'])}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    >
+                      {CATEGORY_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    required
+                    value={productForm.description}
+                    onChange={(e) => handleProductFormChange('description', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (USD)</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={productForm.price}
+                      onChange={(e) => handleProductFormChange('price', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity Available</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={productForm.quantityAvailable}
+                      onChange={(e) => handleProductFormChange('quantityAvailable', Number(e.target.value))}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                      disabled={productForm.isOneOff}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Collection (optional)</label>
+                    <input
+                      value={productForm.collection}
+                      onChange={(e) => handleProductFormChange('collection', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                      placeholder="e.g., New Arrivals"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-gray-700">Product Images</label>
+                      <button
+                        type="button"
+                        onClick={() => productImageFileInputRef.current?.click()}
+                        className="text-sm text-gray-700 underline"
+                      >
+                        Upload images
+                      </button>
+                    </div>
+                    <input
+                      ref={productImageFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        addImages(e.target.files, setProductImages);
+                        if (productImageFileInputRef.current) productImageFileInputRef.current.value = '';
+                      }}
+                    />
+                    <ManagedImagesList
+                      images={productImages}
+                      onSetPrimary={(id) => setPrimaryImage(id, setProductImages)}
+                      onMove={(id, dir) => moveImage(id, dir, setProductImages)}
+                      onRemove={(id) => removeImage(id, setProductImages)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Image URLs (optional fallback)</label>
+                    <textarea
+                      value={productForm.imageUrls}
+                      onChange={(e) => handleProductFormChange('imageUrls', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                      rows={4}
+                      placeholder="Provide URLs if not uploading. Primary = first entry."
+                    />
+                    <input
+                      value={productForm.imageUrl}
+                      onChange={(e) => handleProductFormChange('imageUrl', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                      placeholder="Primary image URL (optional)"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={productForm.isOneOff}
+                      onChange={(e) => handleProductFormChange('isOneOff', e.target.checked)}
+                      className="h-4 w-4 text-gray-900 border-gray-300 rounded"
+                    />
+                    One-off piece
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={productForm.isActive}
+                      onChange={(e) => handleProductFormChange('isActive', e.target.checked)}
+                      className="h-4 w-4 text-gray-900 border-gray-300 rounded"
+                    />
+                    Active (visible)
+                  </label>
+                  <div className="text-xs text-gray-500 self-center">
+                    Price is stored in cents; Stripe IDs are optional (future checkout TODO).
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Stripe Price ID (optional)</label>
+                    <input
+                      value={productForm.stripePriceId}
+                      onChange={(e) => handleProductFormChange('stripePriceId', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                      placeholder="price_..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Stripe Product ID (optional)</label>
+                    <input
+                      value={productForm.stripeProductId}
+                      onChange={(e) => handleProductFormChange('stripeProductId', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                      placeholder="prod_..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={productSaveState === 'saving'}
+                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    {productSaveState === 'saving' ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-200" />
+                        <span>Saving...</span>
+                      </span>
+                    ) : (
+                      'Add Product'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetProductForm}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:border-gray-400"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between p-6 pb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Current Products</h3>
+                  <p className="text-sm text-gray-600">Edit or remove items already in the storefront.</p>
+                </div>
+                {isLoadingProducts && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading...
+                  </div>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">One-off</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Active</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {adminProducts.map((product) => {
+                      const isEditing = editProductId === product.id && editProductForm;
+                      return (
+                        <tr key={product.id}>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {isEditing ? (
+                              <input
+                                value={editProductForm?.name || ''}
+                                onChange={(e) => handleEditFormChange('name', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded"
+                              />
+                            ) : (
+                              <div>
+                                <div className="font-medium">{product.name}</div>
+                                <div className="text-xs text-gray-500">{product.collection || '—'}</div>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {isEditing ? (
+                              <select
+                                value={editProductForm?.category}
+                                onChange={(e) =>
+                                  handleEditFormChange('category', e.target.value as ProductFormState['category'])
+                                }
+                                className="w-full px-2 py-1 border border-gray-300 rounded"
+                              >
+                                {CATEGORY_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              product.type
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editProductForm?.price}
+                                onChange={(e) => handleEditFormChange('price', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded"
+                              />
+                            ) : (
+                              formatPriceDisplay(product.priceCents)
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="1"
+                                value={editProductForm?.quantityAvailable || 1}
+                                onChange={(e) => handleEditFormChange('quantityAvailable', Number(e.target.value))}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded"
+                                disabled={editProductForm?.isOneOff}
+                              />
+                            ) : (
+                              product.quantityAvailable ?? 1
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {isEditing ? (
+                              <input
+                                type="checkbox"
+                                checked={!!editProductForm?.isOneOff}
+                                onChange={(e) => handleEditFormChange('isOneOff', e.target.checked)}
+                                className="h-4 w-4 text-gray-900 border-gray-300 rounded"
+                              />
+                            ) : (
+                              <span
+                                className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                  product.oneoff ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                                }`}
+                              >
+                                {product.oneoff ? 'One-off' : 'Multi'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {isEditing ? (
+                              <input
+                                type="checkbox"
+                                checked={!!editProductForm?.isActive}
+                                onChange={(e) => handleEditFormChange('isActive', e.target.checked)}
+                                className="h-4 w-4 text-gray-900 border-gray-300 rounded"
+                              />
+                            ) : (
+                              <span
+                                className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                  product.visible ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                                }`}
+                              >
+                                {product.visible ? 'Active' : 'Hidden'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900 space-x-2">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  onClick={handleUpdateProduct}
+                                  className="inline-flex items-center gap-1 px-3 py-1 bg-gray-900 text-white rounded hover:bg-gray-800"
+                                >
+                                  <CheckCircle className="w-4 h-4" /> Save
+                                </button>
+                                <button
+                                  onClick={cancelEditProduct}
+                                  className="inline-flex items-center gap-1 px-3 py-1 border border-gray-300 rounded hover:border-gray-400 text-gray-700"
+                                >
+                                  <X className="w-4 h-4" /> Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => startEditProduct(product)}
+                                  className="inline-flex items-center gap-1 px-3 py-1 border border-gray-300 rounded hover:border-gray-400 text-gray-700"
+                                >
+                                  <Pencil className="w-4 h-4" /> Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteProduct(product.id)}
+                                  className="inline-flex items-center gap-1 px-3 py-1 text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" /> Delete
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {adminProducts.length === 0 && !isLoadingProducts && (
+                  <div className="p-6 text-center text-gray-500">No products yet</div>
+                )}
+              </div>
+            </div>
+
+            {editProductId && (
+              <div className="bg-white rounded-lg shadow-sm border border-dashed border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Edit Images</h4>
+                    <p className="text-xs text-gray-600">Upload, reorder, and set a primary image.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => editProductImageFileInputRef.current?.click()}
+                    className="text-sm text-gray-700 underline"
+                  >
+                    Upload images
+                  </button>
+                  <input
+                    ref={editProductImageFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      addImages(e.target.files, setEditProductImages);
+                      if (editProductImageFileInputRef.current) editProductImageFileInputRef.current.value = '';
+                    }}
+                  />
+                </div>
+                <ManagedImagesList
+                  images={editProductImages}
+                  onSetPrimary={(id) => setPrimaryImage(id, setEditProductImages)}
+                  onMove={(id, dir) => moveImage(id, dir, setEditProductImages)}
+                  onRemove={(id) => removeImage(id, setEditProductImages)}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -589,6 +1295,147 @@ function GalleryAdmin({
           if (fileInputRef.current) fileInputRef.current.value = '';
         }}
       />
+    </div>
+  );
+}
+
+function productToFormState(product: Product): ProductFormState {
+  return {
+    name: product.name,
+    description: product.description,
+    price: product.priceCents ? (product.priceCents / 100).toFixed(2) : '',
+    category: (product.type as ProductFormState['category']) || 'Ring Dish',
+    imageUrl: product.imageUrl,
+    imageUrls: product.imageUrls ? product.imageUrls.join(',') : '',
+    quantityAvailable: product.quantityAvailable ?? 1,
+    isOneOff: product.oneoff,
+    isActive: product.visible,
+    collection: product.collection || '',
+    stripePriceId: product.stripePriceId || '',
+    stripeProductId: product.stripeProductId || '',
+  };
+}
+
+function formStateToPayload(state: ProductFormState) {
+  const priceNumber = Number(state.price || 0);
+  const parsedImages = parseImageUrls(state.imageUrls);
+  const quantityAvailable = state.isOneOff ? 1 : Math.max(1, Number(state.quantityAvailable) || 1);
+
+  return {
+    name: state.name.trim(),
+    description: state.description.trim(),
+    priceCents: Math.round(priceNumber * 100),
+    category: state.category,
+    imageUrl: state.imageUrl.trim(),
+    imageUrls: parsedImages,
+    quantityAvailable,
+    isOneOff: state.isOneOff,
+    isActive: state.isActive,
+    collection: state.collection?.trim() || undefined,
+    stripePriceId: state.stripePriceId?.trim() || undefined,
+    stripeProductId: state.stripeProductId?.trim() || undefined,
+  };
+}
+
+function parseImageUrls(value: string): string[] {
+  if (!value) return [];
+  return value
+    .split(/[\n,]+/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function mergeManualImages(state: ProductFormState): { imageUrl: string; imageUrls: string[] } {
+  const extra = parseImageUrls(state.imageUrls);
+  const combined = [state.imageUrl, ...extra].filter(Boolean);
+  return {
+    imageUrl: combined[0] || '',
+    imageUrls: combined,
+  };
+}
+
+function mergeImages(
+  primarySet: { imageUrl: string; imageUrls: string[] },
+  secondary: { imageUrl: string; imageUrls: string[] }
+): { imageUrl: string; imageUrls: string[] } {
+  const merged = [...(primarySet.imageUrls || [])];
+  for (const url of secondary.imageUrls || []) {
+    if (!merged.includes(url)) merged.push(url);
+  }
+  const imageUrl = primarySet.imageUrl || secondary.imageUrl || merged[0] || '';
+  if (imageUrl && !merged.includes(imageUrl)) {
+    merged.unshift(imageUrl);
+  }
+  return { imageUrl, imageUrls: merged };
+}
+
+function formatPriceDisplay(priceCents?: number) {
+  if (priceCents === undefined || priceCents === null) return '$0.00';
+  return `$${(priceCents / 100).toFixed(2)}`;
+}
+
+function ManagedImagesList({
+  images,
+  onSetPrimary,
+  onMove,
+  onRemove,
+}: {
+  images: ManagedImage[];
+  onSetPrimary: (id: string) => void;
+  onMove: (id: string, direction: 'up' | 'down') => void;
+  onRemove: (id: string) => void;
+}) {
+  if (!images.length) {
+    return <div className="text-sm text-gray-500 border border-gray-200 rounded-lg p-3">No images yet. Upload to add.</div>;
+  }
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      {images.map((img, idx) => (
+        <div key={img.id} className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="aspect-square bg-gray-100 overflow-hidden">
+            <img src={img.url} alt={`upload-${idx}`} className="w-full h-full object-cover" />
+          </div>
+          <div className="p-2 space-y-1">
+            <div className="flex items-center justify-between text-xs text-gray-600">
+              <span>{img.isPrimary ? 'Primary' : 'Additional'}</span>
+              <span>{img.isNew ? 'New' : 'Saved'}</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onSetPrimary(img.id)}
+                className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded hover:border-gray-400"
+              >
+                Set primary
+              </button>
+              <button
+                type="button"
+                onClick={() => onRemove(img.id)}
+                className="text-xs text-red-600 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onMove(img.id, 'up')}
+                className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded hover:border-gray-400"
+              >
+                Up
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(img.id, 'down')}
+                className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded hover:border-gray-400"
+              >
+                Down
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

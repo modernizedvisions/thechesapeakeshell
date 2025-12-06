@@ -234,7 +234,7 @@ export function ProductDetailPage() {
                   className="w-64 flex-shrink-0 bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden"
                 >
                   <div className="aspect-square bg-gray-100 overflow-hidden">
-                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                    <img src={item.imageUrl || item.imageUrls?.[0]} alt={item.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="p-4 space-y-2">
                     <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>

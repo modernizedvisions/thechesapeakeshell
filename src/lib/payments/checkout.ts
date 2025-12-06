@@ -6,7 +6,7 @@ export interface EmbeddedCheckoutSession {
 }
 
 // TODO: Move to a Cloudflare Worker that checks D1 inventory and creates a Stripe Embedded Checkout session.
-export async function createEmbeddedCheckoutSession(items: CartItem[]): Promise<EmbeddedCheckoutSession> {
+export async function createEmbeddedCheckoutSession(_items: CartItem[]): Promise<EmbeddedCheckoutSession> {
   // Using a mock response keeps the UI behavior intact until Workers + D1 + Stripe are wired up.
   const reservedUntil = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
