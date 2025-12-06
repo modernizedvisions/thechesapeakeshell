@@ -87,14 +87,6 @@ export const onRequestGet = async (context: {
         lineTotal: li.amount_total ?? 0,
       })) ?? [];
 
-    const cardLast4 =
-      session.payment_intent &&
-      typeof session.payment_intent !== 'string' &&
-      session.payment_intent.payment_method &&
-      typeof session.payment_intent.payment_method !== 'string'
-        ? (session.payment_intent.payment_method as any).card?.last4 ?? null
-        : null;
-
     return json({
       id: session.id,
       amount_total: session.amount_total ?? 0,

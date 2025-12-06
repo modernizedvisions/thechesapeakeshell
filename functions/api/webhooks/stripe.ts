@@ -185,15 +185,15 @@ export const onRequestPost = async (context: {
               id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, card_last4, card_brand
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
           `
-          )
-            .bind(
-              orderId,
-              paymentIntentId,
-              session.amount_total ?? 0,
-              customerEmail,
-              shippingName,
-              JSON.stringify(shippingAddress ?? null),
-              cardLast4,
+        )
+          .bind(
+            orderId,
+            paymentIntentId,
+            session.amount_total ?? 0,
+            customerEmail,
+            shippingName,
+            JSON.stringify(shippingAddress ?? null),
+            cardLast4,
             cardBrand
           )
           .run();
