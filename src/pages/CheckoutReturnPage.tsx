@@ -6,6 +6,15 @@ import { useCartStore } from '../store/cartStore';
 
 type SessionStatus = 'loading' | 'success' | 'pending' | 'failed';
 
+const formatCurrency = (amountCents?: number, currency: string = 'usd') => {
+  if (amountCents == null) return '';
+  const amount = amountCents / 100;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(amount);
+};
+
 export function CheckoutReturnPage() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id');
