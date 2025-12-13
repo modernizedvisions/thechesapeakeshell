@@ -4,16 +4,18 @@ interface WaveDividerProps {
   direction?: 'up' | 'down';
   fill?: string;
   className?: string;
+  dataTestId?: string;
 }
 
-export function WaveDivider({ direction = 'down', fill = '#ffffff', className = '' }: WaveDividerProps) {
-  const transform =
-    direction === 'down'
-      ? 'scale(-1, -1)'
-      : 'scale(1, -1)'; // up flips vertically relative to the down orientation
+export function WaveDivider({ direction = 'down', fill = '#ffffff', className = '', dataTestId }: WaveDividerProps) {
+  const transform = direction === 'down' ? 'scale(-1, -1)' : 'scale(1, -1)';
 
   return (
-    <div className={`block w-full leading-none m-0 p-0 ${className}`} aria-hidden="true">
+    <div
+      className={`block w-full leading-[0] m-0 p-0 ${className}`}
+      aria-hidden="true"
+      data-testid={dataTestId}
+    >
       <svg
         className="block w-full h-24 md:h-28 lg:h-32"
         viewBox="0 0 1440 120"

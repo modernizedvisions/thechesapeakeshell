@@ -8,8 +8,11 @@ export function ContactForm() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const MAX_IMAGE_BYTES = 1_000_000; // ~1MB safety limit
 
   useEffect(() => {
     return () => {
@@ -21,6 +24,7 @@ export function ContactForm() {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus(null);
+    setSubmitError(null);
 
     try {
       let imageUrl: string | null = null;
@@ -35,12 +39,24 @@ export function ContactForm() {
         },
         body: JSON.stringify({
           ...formData,
-          imageUrl,
+          imageUrl: imageUrl || undefined,
         }),
       });
 
       if (!res.ok) {
-        throw new Error('Failed to send message');
+        let errorMessage = 'Failed to send message';
+        try {
+          const data = await res.json();
+          if (data?.error) errorMessage = data.error;
+        } catch {
+          // ignore JSON parse errors
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await res.json().catch(() => null);
+      if (data?.success === false && data?.error) {
+        throw new Error(data.error);
       }
 
       setSubmitStatus('success');
@@ -50,6 +66,7 @@ export function ContactForm() {
     } catch (error) {
       console.error('Error sending message:', error);
       setSubmitStatus('error');
+      setSubmitError(error instanceof Error ? error.message : 'There was an error sending your message.');
     } finally {
       setIsSubmitting(false);
     }
@@ -76,6 +93,17 @@ export function ContactForm() {
   const handleFiles = (files: FileList | null) => {
     if (!files || !files.length) return;
     const file = files[0];
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageFile(null);
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+        setImagePreview(null);
+      }
+      setSubmitStatus('error');
+      setSubmitError('Image too large. Please upload a photo under 1MB.');
+      return;
+    }
+    setSubmitError(null);
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
   };
@@ -171,7 +199,7 @@ export function ContactForm() {
 
           {submitStatus === 'error' && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
-              There was an error sending your message. Please try again.
+              {submitError || 'There was an error sending your message. Please try again.'}
             </div>
           )}
 

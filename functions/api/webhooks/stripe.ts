@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { sendEmail } from '../../_lib/email';
 
 type D1PreparedStatement = {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -11,6 +12,16 @@ type D1Database = {
   prepare(query: string): D1PreparedStatement;
 };
 
+type Env = {
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  DB: D1Database;
+  EMAIL_OWNER_TO?: string;
+  EMAIL_FROM?: string;
+  RESEND_API_KEY?: string;
+  PUBLIC_SITE_URL?: string;
+};
+
 const createStripeClient = (secretKey: string) =>
   new Stripe(secretKey, {
     apiVersion: '2024-06-20',
@@ -21,7 +32,7 @@ const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
 export const onRequestPost = async (context: {
   request: Request;
-  env: { STRIPE_SECRET_KEY?: string; STRIPE_WEBHOOK_SECRET?: string; DB: D1Database };
+  env: Env;
 }) => {
   const { request, env } = context;
 
@@ -150,7 +161,19 @@ export const onRequestPost = async (context: {
       const productId = session.metadata?.product_id;
       const quantityFromMeta = session.metadata?.quantity ? Number(session.metadata.quantity) : 1;
 
-      if (productId) {
+      const invoiceId = session.metadata?.invoiceId;
+
+      if (invoiceId) {
+        await handleCustomInvoicePayment({
+          db: env.DB,
+          env,
+          session,
+          paymentIntentId,
+          amountTotal: session.amount_total ?? 0,
+          currency: session.currency || 'usd',
+          customerEmail,
+        });
+      } else if (productId) {
         const result = await env.DB.prepare(
           `
           UPDATE products
@@ -343,6 +366,131 @@ async function generateDisplayOrderId(db: D1Database): Promise<string> {
     console.error('Failed to generate display order id', error);
     await db.prepare('ROLLBACK;').run();
     throw error;
+  }
+}
+
+async function handleCustomInvoicePayment(args: {
+  db: D1Database;
+  env: Env;
+  session: Stripe.Checkout.Session;
+  paymentIntentId: string | null;
+  amountTotal: number;
+  currency: string;
+  customerEmail: string | null;
+}) {
+  const { db, env, session, paymentIntentId, amountTotal, currency, customerEmail } = args;
+  const invoiceId = session.metadata?.invoiceId;
+  if (!invoiceId) return;
+
+  // Update invoice status
+  const now = new Date().toISOString();
+  const update = await db
+    .prepare(
+      `UPDATE custom_invoices
+       SET status = 'paid',
+           paid_at = ?,
+           stripe_payment_intent_id = ?
+       WHERE id = ?;`
+    )
+    .bind(now, paymentIntentId, invoiceId)
+    .run();
+
+  if (!update.success) {
+    console.error('[webhooks] Failed to mark custom invoice paid', update.error);
+  }
+
+  // Insert order record (best effort, schema may vary)
+  try {
+    await ensureOrdersSchema(db);
+    const orderId = crypto.randomUUID();
+    const displayOrderId = await generateDisplayOrderId(db);
+    const description = session.metadata?.description || 'Custom invoice payment';
+    const amountCents = amountTotal ?? 0;
+    const email = customerEmail || session.customer_details?.email || null;
+
+    // Try insert with extended columns
+    let inserted = await db
+      .prepare(
+        `INSERT INTO orders (
+          id, display_order_id, order_type, stripe_payment_intent_id, total_cents, currency, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, description
+        ) VALUES (?, ?, 'custom', ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?);`
+      )
+      .bind(orderId, displayOrderId, paymentIntentId, amountCents, currency, email, description)
+      .run();
+
+    if (!inserted.success && inserted.error?.includes('no such column')) {
+      // Fallback minimal insert
+      inserted = await db
+        .prepare(
+          `INSERT INTO orders (
+            id, display_order_id, stripe_payment_intent_id, total_cents, customer_email
+          ) VALUES (?, ?, ?, ?, ?);`
+        )
+        .bind(orderId, displayOrderId, paymentIntentId, amountCents, email)
+        .run();
+    }
+
+    if (!inserted.success) {
+      console.error('[webhooks] Failed to insert custom order record', inserted.error);
+    }
+  } catch (orderErr) {
+    console.error('[webhooks] Failed to persist custom invoice order', orderErr);
+  }
+
+  // Send emails (best effort)
+  const invoiceAmount = formatAmount(amountTotal, currency);
+  const invoiceLink = env.PUBLIC_SITE_URL
+    ? `${env.PUBLIC_SITE_URL.replace(/\/+$/, '')}/invoice/${invoiceId}`
+    : `/invoice/${invoiceId}`;
+
+  if (customerEmail) {
+    await sendEmail(
+      {
+        to: customerEmail,
+        subject: 'Payment received — The Chesapeake Shell',
+        html: `
+          <div style="font-family: Inter, Arial, sans-serif; color: #0f172a; padding: 12px; line-height: 1.5;">
+            <h2 style="margin: 0 0 12px; font-size: 18px; font-weight: 700;">Thank you for your payment</h2>
+            <p style="margin: 0 0 8px;">We received your payment for invoice ${invoiceId}.</p>
+            <p style="margin: 0 0 12px; font-weight: 600;">Amount: ${invoiceAmount}</p>
+            <p style="margin: 0 0 12px;">You can revisit your invoice here: <a href="${invoiceLink}" style="color:#0f172a;">${invoiceLink}</a></p>
+          </div>
+        `,
+        text: `Thank you for your payment.\nInvoice: ${invoiceId}\nAmount: ${invoiceAmount}\nView invoice: ${invoiceLink}`,
+      },
+      env
+    );
+  }
+
+  if (env.EMAIL_OWNER_TO) {
+    await sendEmail(
+      {
+        to: env.EMAIL_OWNER_TO,
+        subject: `Custom invoice paid — ${invoiceId}`,
+        html: `
+          <div style="font-family: Inter, Arial, sans-serif; color: #0f172a; padding: 12px; line-height: 1.5;">
+            <h2 style="margin: 0 0 12px; font-size: 18px; font-weight: 700;">Custom invoice paid</h2>
+            <p style="margin: 0 0 8px;">Invoice ID: ${invoiceId}</p>
+            <p style="margin: 0 0 8px;">Customer: ${customerEmail || 'Unknown'}</p>
+            <p style="margin: 0 0 12px; font-weight: 600;">Amount: ${invoiceAmount}</p>
+            <p style="margin: 0 0 12px;">Link: <a href="${invoiceLink}" style="color:#0f172a;">${invoiceLink}</a></p>
+          </div>
+        `,
+        text: `Custom invoice paid\nInvoice: ${invoiceId}\nCustomer: ${customerEmail || 'Unknown'}\nAmount: ${invoiceAmount}\nLink: ${invoiceLink}`,
+      },
+      env
+    );
+  }
+}
+
+function formatAmount(amountCents: number, currency: string) {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    }).format((amountCents || 0) / 100);
+  } catch {
+    return `$${((amountCents || 0) / 100).toFixed(2)} ${currency}`;
   }
 }
 

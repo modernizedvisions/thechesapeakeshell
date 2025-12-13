@@ -21,8 +21,22 @@ export async function onRequestPost(context: { env: { DB: D1Database }; request:
     const name = body?.name?.trim() || '';
     const email = body?.email?.trim() || '';
     const message = body?.message?.trim() || '';
+
     if (!name || !email || !message) {
-      return jsonResponse({ error: 'Name, email, and message are required.' }, 400);
+      return jsonResponse({ success: false, error: 'Name, email, and message are required.' }, 400);
+    }
+
+    if (name.length > 120) {
+      return jsonResponse({ success: false, error: 'Name is too long (max 120 characters).' }, 400);
+    }
+    if (email.length > 254) {
+      return jsonResponse({ success: false, error: 'Email is too long (max 254 characters).' }, 400);
+    }
+    if (message.length > 5000) {
+      return jsonResponse({ success: false, error: 'Message is too long (max 5000 characters).' }, 400);
+    }
+    if (body?.imageUrl && body.imageUrl.length > 200000) {
+      return jsonResponse({ success: false, error: 'Image is too large. Please upload a smaller file.' }, 400);
     }
 
     const id = crypto.randomUUID();
@@ -35,15 +49,14 @@ export async function onRequestPost(context: { env: { DB: D1Database }; request:
 
     const result = await insert.run();
     if (!result.success) {
-      console.error('Failed to insert message', result.error);
-      return jsonResponse({ error: 'Failed to save message' }, 500);
+      console.error('[messages] Failed to insert message', result.error);
+      return jsonResponse({ success: false, error: 'Failed to save message' }, 500);
     }
 
-    // TODO: Hook up outbound email/notifications when available.
     return jsonResponse({ success: true, id, createdAt });
   } catch (err) {
-    console.error('Error handling message submission', err);
-    return jsonResponse({ error: 'Internal error' }, 500);
+    console.error('[messages] Error handling message submission', err);
+    return jsonResponse({ success: false, error: 'Server error saving message' }, 500);
   }
 }
 

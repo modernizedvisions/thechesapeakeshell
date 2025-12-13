@@ -177,12 +177,94 @@ export function HomePage() {
   const customImagesToShow = customOrderImages.length ? customOrderImages : fallbackCustomShellImages;
   const followBg = 'var(--follow-bg, #f1f5f9)';
 
+  // DEBUG: log divider layout/styling to diagnose seam/orientation issues. Remove after diagnosis.
+  useEffect(() => {
+    const ids = ['divider-hero', 'divider-custom-follow'];
+    ids.forEach((id) => {
+      const el = document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
+      if (!el) {
+        console.log(`[DEBUG wave] ${id} not found`);
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const styles = window.getComputedStyle(el);
+      console.log(`[DEBUG wave] ${id}`, {
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        marginTop: styles.marginTop,
+        marginBottom: styles.marginBottom,
+        paddingTop: styles.paddingTop,
+        paddingBottom: styles.paddingBottom,
+        display: styles.display,
+        lineHeight: styles.lineHeight,
+        backgroundColor: styles.backgroundColor,
+        className: el.className,
+        position: styles.position,
+        overflow: styles.overflow,
+      });
+      const svg = el.querySelector('svg');
+      if (svg) {
+        const svgRect = svg.getBoundingClientRect();
+        const svgStyles = window.getComputedStyle(svg);
+        console.log(`[DEBUG wave] ${id} svg`, {
+          rect: { x: svgRect.x, y: svgRect.y, width: svgRect.width, height: svgRect.height },
+          marginTop: svgStyles.marginTop,
+          marginBottom: svgStyles.marginBottom,
+          paddingTop: svgStyles.paddingTop,
+          paddingBottom: svgStyles.paddingBottom,
+          display: svgStyles.display,
+          lineHeight: svgStyles.lineHeight,
+          backgroundColor: svgStyles.backgroundColor,
+          transform: svgStyles.transform,
+        });
+      }
+    });
+
+    const containers = ['section-hero-shop', 'section-custom-orders', 'divider-bridge', 'section-follow'];
+    containers.forEach((id) => {
+      const el = document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
+      if (!el) {
+        console.log(`[DEBUG wave] ${id} not found`);
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const styles = window.getComputedStyle(el);
+      console.log(`[DEBUG wave] container ${id}`, {
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        marginTop: styles.marginTop,
+        marginBottom: styles.marginBottom,
+        paddingTop: styles.paddingTop,
+        paddingBottom: styles.paddingBottom,
+        display: styles.display,
+        lineHeight: styles.lineHeight,
+        backgroundColor: styles.backgroundColor,
+        className: el.className,
+        position: styles.position,
+        overflow: styles.overflow,
+      });
+    });
+
+    const roots = [
+      { label: 'documentElement', el: document.documentElement },
+      { label: 'body', el: document.body },
+    ];
+    roots.forEach(({ label, el }) => {
+      const styles = window.getComputedStyle(el);
+      console.log(`[DEBUG wave] root ${label}`, {
+        backgroundColor: styles.backgroundColor,
+        marginTop: styles.marginTop,
+        marginBottom: styles.marginBottom,
+        paddingTop: styles.paddingTop,
+        paddingBottom: styles.paddingBottom,
+      });
+    });
+  }, []);
+
   return (
     <div className="bg-white">
       <HomeHero heroImages={heroImages} />
 
-      <section className="pt-0 pb-16 bg-white">
-        <WaveDivider direction="down" fill="#ffffff" className="bg-[#F6F1E7]" />
+      <section className="pt-0 pb-16 bg-white" data-testid="section-hero-shop">
+        <WaveDivider direction="down" fill="#ffffff" className="bg-[#F6F1E7]" dataTestId="divider-hero" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="text-3xl font-serif font-semibold text-gray-900 mb-8 text-center">
               SHOP THE COLLECTION
@@ -250,7 +332,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="w-full bg-white py-16 md:py-20">
+      <section className="w-full bg-white py-16 md:py-20" data-testid="section-custom-orders">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-10 md:mb-12">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">CUSTOM ORDERS</h2>
@@ -309,11 +391,23 @@ export function HomePage() {
         </div>
       </section>
 
-      <section
-        className="w-full pt-0 pb-16 md:pb-20"
-        style={{ backgroundColor: followBg }}
+      <div
+        className="w-full bg-white leading-[0] m-0 p-0 overflow-hidden -mb-px"
+        data-testid="divider-bridge"
       >
-        <WaveDivider direction="down" fill={followBg} className="-mt-px -mb-px" />
+        <WaveDivider
+          direction="up"
+          fill={followBg}
+          className="block"
+          dataTestId="divider-custom-follow"
+        />
+      </div>
+
+      <section
+        className="w-full pt-0 pb-16 md:pb-20 -mt-px"
+        style={{ backgroundColor: followBg }}
+        data-testid="section-follow"
+      >
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-6">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">FOLLOW ALONG</h2>
