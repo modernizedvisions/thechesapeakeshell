@@ -31,6 +31,7 @@ export interface CartItem {
   quantity: number;
   imageUrl?: string;
   oneoff?: boolean;
+  quantityAvailable?: number | null;
   stripeProductId?: string | null;
   stripePriceId?: string | null;
 }

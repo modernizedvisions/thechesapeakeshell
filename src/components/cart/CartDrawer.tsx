@@ -69,25 +69,26 @@ export function CartDrawer() {
                       </span>
                     )}
                     <div className="mt-2 flex items-center gap-2">
-                      {item.oneoff ? (
-                        <span className="text-sm text-gray-500">Qty: 1</span>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                            className="p-1 hover:bg-gray-100 rounded"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <span className="w-8 text-center">{item.quantity}</span>
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                            className="p-1 hover:bg-gray-100 rounded"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
+                    {item.oneoff ? (
+                      <span className="text-sm text-gray-500">Qty: 1</span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                          className="p-1 hover:bg-gray-100 rounded"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="w-8 text-center">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                          disabled={item.quantityAvailable !== null && item.quantityAvailable !== undefined && item.quantity >= item.quantityAvailable}
+                          className="p-1 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                       <button
                         onClick={() => removeItem(item.productId)}
                         className="ml-auto p-1 hover:bg-red-50 text-red-600 rounded"

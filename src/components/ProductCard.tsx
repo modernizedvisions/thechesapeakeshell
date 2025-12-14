@@ -10,19 +10,30 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem);
+  const qtyInCart = useCartStore((state) => {
+    const found = state.items.find((i) => i.productId === product.id);
+    return found?.quantity ?? 0;
+  });
   const isOneOffInCart = useCartStore((state) => state.isOneOffInCart);
-  const isProductInCart = useCartStore((state) => state.isProductInCart);
   const setCartDrawerOpen = useUIStore((state) => state.setCartDrawerOpen);
   const navigate = useNavigate();
 
-  const inCart = isProductInCart(product.id);
-  const isDisabled = product.oneoff && inCart;
+  const inCart = qtyInCart > 0;
+  const maxQty = product.quantityAvailable ?? null;
+  const isAtMax = maxQty !== null && qtyInCart >= maxQty;
+  const isDisabled = (product.oneoff && inCart) || (maxQty !== null && qtyInCart >= maxQty);
   const isSold = product.isSold || (product.quantityAvailable !== undefined && product.quantityAvailable <= 0);
   const isPurchaseReady = !!product.priceCents && !isSold;
 
   const handleAddToCart = () => {
     if (!product.priceCents || isSold) return;
     if (product.oneoff && isOneOffInCart(product.id)) return;
+    if (maxQty !== null && qtyInCart >= maxQty) {
+      if (typeof window !== 'undefined') {
+        alert(`Only ${maxQty} available.`);
+      }
+      return;
+    }
 
     addItem({
       productId: product.id,
@@ -31,6 +42,7 @@ export function ProductCard({ product }: ProductCardProps) {
       quantity: 1,
       imageUrl: product.thumbnailUrl || product.imageUrl,
       oneoff: product.oneoff,
+      quantityAvailable: product.quantityAvailable ?? null,
       stripeProductId: product.stripeProductId ?? null,
       stripePriceId: product.stripePriceId ?? null,
     });

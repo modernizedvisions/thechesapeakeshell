@@ -9,6 +9,7 @@ interface CartStore {
   clearCart: () => void;
   isOneOffInCart: (productId: string) => boolean;
   isProductInCart: (productId: string) => boolean;
+  getQuantityForProduct: (productId: string) => number;
   getTotalItems: () => number;
   getSubtotal: () => number;
 }
@@ -39,6 +40,7 @@ const loadCartFromStorage = (): CartItem[] => {
           quantity: item.quantity,
           imageUrl: item.imageUrl,
           oneoff: item.oneoff,
+          quantityAvailable: (item as CartItem).quantityAvailable ?? null,
           stripeProductId: (item as CartItem).stripeProductId ?? (item as CartItemLegacy).stripeProductId ?? null,
           stripePriceId: (item as CartItem).stripePriceId ?? (item as CartItemLegacy).stripePriceId ?? null,
         }))
@@ -75,9 +77,19 @@ export const useCartStore = create<CartStore>((set, get) => ({
       if (existingIndex >= 0) {
         newItems = [...state.items];
         if (!item.oneoff) {
+          const max = newItems[existingIndex].quantityAvailable ?? null;
+          const desired = newItems[existingIndex].quantity + item.quantity;
+          const clamped = max !== null ? Math.min(desired, max) : desired;
+          if (clamped === newItems[existingIndex].quantity && max !== null) {
+            if (typeof window !== 'undefined') {
+              alert(`Only ${max} available.`);
+            }
+            saveCartToStorage(newItems);
+            return { items: newItems };
+          }
           newItems[existingIndex] = {
             ...newItems[existingIndex],
-            quantity: newItems[existingIndex].quantity + item.quantity,
+            quantity: clamped,
           };
         }
       } else {
@@ -111,7 +123,13 @@ export const useCartStore = create<CartStore>((set, get) => ({
         return { items: newItems };
       }
 
-      const newItems = state.items.map((i) => (i.productId === productId ? { ...i, quantity } : i));
+      const max = item?.quantityAvailable ?? null;
+      const clamped = max !== null ? Math.min(quantity, max) : quantity;
+      if (max !== null && clamped < quantity && typeof window !== 'undefined') {
+        alert(`Only ${max} available.`);
+      }
+
+      const newItems = state.items.map((i) => (i.productId === productId ? { ...i, quantity: clamped } : i));
 
       saveCartToStorage(newItems);
       return { items: newItems };
@@ -130,6 +148,10 @@ export const useCartStore = create<CartStore>((set, get) => ({
 
   isProductInCart: (productId: string) => {
     return get().items.some((item) => item.productId === productId);
+  },
+
+  getQuantityForProduct: (productId: string) => {
+    return get().items.find((item) => item.productId === productId)?.quantity ?? 0;
   },
 
   getTotalItems: () => {
