@@ -45,7 +45,7 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
 
   const orders = Array.isArray(data.orders) ? (data.orders as AdminOrder[]) : [];
   if (import.meta.env.DEV) {
-    console.debug('[admin orders] parsed orders', { count: orders.length });
+    console.debug('[admin orders] parsed orders', { count: orders.length, sample: orders.slice(0, 2) });
   }
   return orders;
 }

@@ -33,20 +33,20 @@ type OrderItemRow = {
 
 export const onRequestGet = async (context: { env: { DB: D1Database } }): Promise<Response> => {
   try {
-    await ensureOrdersSchema(context.env.DB);
+    await assertOrdersTables(context.env.DB);
     let orderRows: OrderRow[] = [];
     // First try selecting card fields (may not exist in older schema).
     try {
       const ordersWithCardStmt = context.env.DB.prepare(
         `SELECT id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, created_at
-         FROM orders ORDER BY created_at DESC LIMIT 20;`
+         FROM orders ORDER BY datetime(created_at) DESC LIMIT 50;`
       );
       const res = await ordersWithCardStmt.all<OrderRow>();
       orderRows = res.results || [];
     } catch {
       const fallbackStmt = context.env.DB.prepare(
         `SELECT id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, created_at
-         FROM orders ORDER BY created_at DESC LIMIT 20;`
+         FROM orders ORDER BY datetime(created_at) DESC LIMIT 50;`
       );
       const res = await fallbackStmt.all<OrderRow>();
       orderRows = res.results || [];
@@ -99,9 +99,8 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
   } catch (err) {
     console.error('Error fetching admin orders', err);
     const message = err instanceof Error ? err.message : String(err);
-    // Return an empty list (but include detail) so the admin UI can still render gracefully.
-    return new Response(JSON.stringify({ orders: [], error: 'Failed to load orders', detail: message }), {
-      status: 200,
+    return new Response(JSON.stringify({ error: 'Failed to load orders', detail: message }), {
+      status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -120,55 +119,15 @@ function safeParseAddress(jsonString: string | null): Record<string, string | nu
   }
 }
 
-async function ensureOrdersSchema(db: D1Database) {
-  await db.prepare(`CREATE TABLE IF NOT EXISTS orders (
-    id TEXT PRIMARY KEY,
-    display_order_id TEXT,
-    order_type TEXT,
-    stripe_payment_intent_id TEXT,
-    total_cents INTEGER,
-    currency TEXT,
-    customer_email TEXT,
-    shipping_name TEXT,
-    shipping_address_json TEXT,
-    card_last4 TEXT,
-    card_brand TEXT,
-    description TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  );`).run();
-
-  await db.prepare(`CREATE TABLE IF NOT EXISTS order_items (
-    id TEXT PRIMARY KEY,
-    order_id TEXT,
-    product_id TEXT,
-    quantity INTEGER,
-    price_cents INTEGER,
-    created_at TEXT DEFAULT (datetime('now'))
-  );`).run();
-
-  await db.prepare(`CREATE TABLE IF NOT EXISTS order_counters (
-    year INTEGER PRIMARY KEY,
-    counter INTEGER NOT NULL
-  );`).run();
-
-  const columns = await db.prepare(`PRAGMA table_info(orders);`).all<{ name: string }>();
-  const columnNames = (columns.results || []).map((c) => c.name);
-  const addColumnIfMissing = async (name: string, ddl: string) => {
-    if (!columnNames.includes(name)) {
-      await db.prepare(ddl).run();
-    }
-  };
-
-  await addColumnIfMissing('display_order_id', `ALTER TABLE orders ADD COLUMN display_order_id TEXT;`);
-  await addColumnIfMissing('order_type', `ALTER TABLE orders ADD COLUMN order_type TEXT;`);
-  await addColumnIfMissing('currency', `ALTER TABLE orders ADD COLUMN currency TEXT;`);
-  await addColumnIfMissing('description', `ALTER TABLE orders ADD COLUMN description TEXT;`);
-
-  await db
-    .prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_display_order_id ON orders(display_order_id);`)
-    .run();
-
-  await backfillDisplayOrderIds(db);
+async function assertOrdersTables(db: D1Database) {
+  const { results } = await db
+    .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('orders','order_items');`)
+    .all<{ name: string }>();
+  const existing = new Set((results || []).map((r) => r.name));
+  const missing = ['orders', 'order_items'].filter((t) => !existing.has(t));
+  if (missing.length) {
+    throw new Error(`Missing required tables: ${missing.join(', ')}`);
+  }
 }
 
 async function backfillDisplayOrderIds(db: D1Database) {

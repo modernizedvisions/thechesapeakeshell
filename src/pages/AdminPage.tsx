@@ -69,6 +69,7 @@ export function AdminPage() {
   const [error, setError] = useState('');
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [soldProducts, setSoldProducts] = useState<Product[]>([]);
@@ -171,6 +172,7 @@ export function AdminPage() {
   };
 
   const loadAdminData = async () => {
+    setIsLoadingOrders(true);
     const [ordersData, soldData, galleryData, heroData] = await Promise.all([
       fetchOrders().then((data) => {
         setOrdersError(null);
@@ -185,6 +187,7 @@ export function AdminPage() {
       fetchHomeHeroConfig(),
     ]);
     setOrders(ordersData);
+    setIsLoadingOrders(false);
     setSoldProducts(soldData);
     setGalleryImages(galleryData);
     setHeroConfig({
@@ -604,6 +607,7 @@ export function AdminPage() {
             filteredOrders={filteredOrders}
             onSearchChange={setSearchQuery}
             onSelectOrder={setSelectedOrder}
+            loading={isLoadingOrders}
             error={ordersError}
           />
         )}
