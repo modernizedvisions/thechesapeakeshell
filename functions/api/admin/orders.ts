@@ -98,8 +98,10 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
     });
   } catch (err) {
     console.error('Error fetching admin orders', err);
-    return new Response(JSON.stringify({ error: 'Failed to load orders' }), {
-      status: 500,
+    const message = err instanceof Error ? err.message : String(err);
+    // Return an empty list (but include detail) so the admin UI can still render gracefully.
+    return new Response(JSON.stringify({ orders: [], error: 'Failed to load orders', detail: message }), {
+      status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
   }
