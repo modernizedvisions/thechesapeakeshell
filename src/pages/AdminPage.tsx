@@ -172,30 +172,49 @@ export function AdminPage() {
   };
 
   const loadAdminData = async () => {
+    // Fetch orders first with explicit loading/error handling so UI never shows stale empty data.
     setIsLoadingOrders(true);
-    const [ordersData, soldData, galleryData, heroData] = await Promise.all([
-      fetchOrders()
-        .then((data) => {
-          setOrdersError(null);
-          return data;
-        })
-        .catch((err) => {
-          console.error('Failed to load admin orders', err);
-          setOrdersError(err instanceof Error ? err.message : 'Failed to load orders');
+    try {
+      const ordersData = await fetchOrders();
+      setOrders(ordersData);
+      setOrdersError(null);
+      if (import.meta.env.DEV) {
+        console.debug('[admin] fetched orders', { count: ordersData.length });
+      }
+    } catch (err) {
+      console.error('Failed to load admin orders', err);
+      setOrdersError(err instanceof Error ? err.message : 'Failed to load orders');
+      setOrders([]);
+    } finally {
+      setIsLoadingOrders(false);
+    }
+
+    // Fetch other admin data in parallel; failures here should not hide orders.
+    try {
+      const [soldData, galleryData, heroData] = await Promise.all([
+        fetchSoldProducts().catch((err) => {
+          console.error('Failed to load sold products', err);
           return [];
-        })
-        .finally(() => setIsLoadingOrders(false)),
-      fetchSoldProducts(),
-      fetchGalleryImages(),
-      fetchHomeHeroConfig(),
-    ]);
-    setOrders(ordersData);
-    setSoldProducts(soldData);
-    setGalleryImages(galleryData);
-    setHeroConfig({
-      heroImages: (heroData.heroImages || []).slice(0, 3),
-      customOrdersImages: (heroData.customOrdersImages || []).slice(0, 4),
-    });
+        }),
+        fetchGalleryImages().catch((err) => {
+          console.error('Failed to load gallery images', err);
+          return [];
+        }),
+        fetchHomeHeroConfig().catch((err) => {
+          console.error('Failed to load home hero config', err);
+          return { heroImages: [], customOrdersImages: [] };
+        }),
+      ]);
+      setSoldProducts(soldData);
+      setGalleryImages(galleryData);
+      setHeroConfig({
+        heroImages: (heroData.heroImages || []).slice(0, 3),
+        customOrdersImages: (heroData.customOrdersImages || []).slice(0, 4),
+      });
+    } catch (err) {
+      // Already logged per-call; avoid throwing to keep orders visible.
+    }
+
     await loadAdminProducts();
   };
 
