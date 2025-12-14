@@ -29,6 +29,7 @@ type OrderItemRow = {
   quantity: number;
   price_cents: number;
   product_name: string | null;
+  product_image_url?: string | null;
 };
 
 export const onRequestGet = async (context: { env: { DB: D1Database } }): Promise<Response> => {
@@ -72,16 +73,33 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
       count: orderRows.length,
     });
 
+    const productColumns = await context.env.DB.prepare(`PRAGMA table_info(products);`).all<{ name: string }>();
+    const productCols = new Set((productColumns.results || []).map((c) => c.name));
+    const joinColumn = productCols.has('stripe_product_id')
+      ? 'stripe_product_id'
+      : productCols.has('stripe_product_id'.toUpperCase())
+      ? 'stripe_product_id'.toUpperCase()
+      : 'id';
+
+    const hasImageUrlsJson = productCols.has('image_urls_json');
     const orderIds = (orderRows || []).map((o) => o.id);
     let itemsByOrder: Record<string, OrderItemRow[]> = {};
 
     if (orderIds.length) {
       const placeholders = orderIds.map(() => '?').join(',');
+      const imageSelect = hasImageUrlsJson
+        ? `COALESCE(p.image_url,
+            (SELECT json_extract(p.image_urls_json, '$[0]'))
+          )`
+        : `p.image_url`;
+
       const itemsStmt = context.env.DB.prepare(
         `
-        SELECT oi.*, p.name AS product_name
+        SELECT oi.*,
+               p.name AS product_name,
+               ${imageSelect} AS product_image_url
         FROM order_items oi
-        LEFT JOIN products p ON oi.product_id = p.id
+        LEFT JOIN products p ON oi.product_id = p.${joinColumn}
         WHERE oi.order_id IN (${placeholders});
       `
       ).bind(...orderIds);
@@ -110,6 +128,7 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
         productName: i.product_name,
         quantity: i.quantity,
         priceCents: i.price_cents,
+        productImageUrl: i.product_image_url ?? null,
       })),
     }));
 

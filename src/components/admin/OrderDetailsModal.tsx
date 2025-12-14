@@ -98,12 +98,24 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
                 {items.map((item, idx) => (
                   <div key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-10 w-10 rounded-md bg-slate-100 border border-slate-200" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-slate-900 truncate">
-                          {item.productName || item.productId || 'Item'}
-                        </div>
-                        <div className="text-xs text-slate-600">
+                      <div className="h-10 w-10 rounded-md bg-slate-100 border border-slate-200 overflow-hidden">
+                        {item.productImageUrl ? (
+                          <img
+                            src={item.productImageUrl}
+                            alt={item.productName || 'Product'}
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : null}
+                      </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-slate-900 truncate">
+                        {item.productName || item.productId || 'Item'}
+                      </div>
+                      <div className="text-xs text-slate-600">
                           Qty: {item.quantity || 0} × {formatCurrency(item.priceCents)}
                         </div>
                       </div>

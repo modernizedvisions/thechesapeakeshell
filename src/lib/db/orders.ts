@@ -3,6 +3,7 @@ export type AdminOrderItem = {
   productName: string | null;
   quantity: number;
   priceCents: number;
+  productImageUrl?: string | null;
 };
 
 export type AdminOrder = {
