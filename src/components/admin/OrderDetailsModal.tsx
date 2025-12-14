@@ -33,6 +33,8 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
       }];
 
   const lineTotal = (qty: number, priceCents: number) => formatCurrency((qty || 0) * (priceCents || 0));
+  const shippingCents = order.shippingCents ?? 0;
+  const subtotalCents = Math.max((order.totalCents ?? 0) - shippingCents, 0);
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-3 py-6">
@@ -130,9 +132,19 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
 
             <section className="rounded-lg border border-slate-200 p-4">
               <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Totals</p>
-              <div className="flex items-center justify-between text-sm text-slate-900 font-semibold">
-                <span>Total</span>
-                <span>{formatCurrency(order.totalCents)}</span>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">Subtotal</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(subtotalCents)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">Shipping</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(shippingCents)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+                  <span className="font-semibold text-slate-900">Total</span>
+                  <span className="font-semibold text-slate-900">{formatCurrency(order.totalCents)}</span>
+                </div>
               </div>
             </section>
           </div>

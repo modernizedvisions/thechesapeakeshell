@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { sendEmail } from '../../_lib/email';
+import { calculateShippingCents } from '../../_lib/shipping';
 
 type D1PreparedStatement = {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -165,6 +166,11 @@ export const onRequestPost = async (context: {
       const quantityFromMeta = session.metadata?.quantity ? Number(session.metadata.quantity) : 1;
 
       const invoiceId = session.metadata?.invoiceId;
+      const shippingCentsFromStripe = (session.total_details as any)?.amount_shipping ?? null;
+      const inferredShipping = shippingCentsFromStripe !== null && shippingCentsFromStripe !== undefined
+        ? Number(shippingCentsFromStripe)
+        : calculateShippingCents(session.amount_subtotal ?? session.amount_total ?? 0);
+      const shippingCents = Number.isFinite(inferredShipping) ? Number(inferredShipping) : 0;
 
       if (invoiceId) {
         await handleCustomInvoicePayment({
@@ -212,11 +218,12 @@ export const onRequestPost = async (context: {
       await assertOrdersTables(env.DB);
       const orderId = crypto.randomUUID();
       const displayOrderId = await generateDisplayOrderId(env.DB);
+      await ensureShippingColumn(env.DB);
       const insertWithCard = await env.DB.prepare(
         `
           INSERT INTO orders (
-            id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, card_last4, card_brand
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, shipping_cents
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         `
       )
         .bind(
@@ -228,7 +235,8 @@ export const onRequestPost = async (context: {
           shippingName,
           JSON.stringify(shippingAddress ?? null),
           cardLast4,
-          cardBrand
+          cardBrand,
+          shippingCents
         )
         .run();
 
@@ -239,8 +247,8 @@ export const onRequestPost = async (context: {
         const fallbackResult = await env.DB.prepare(
           `
             INSERT INTO orders (
-              id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?);
+              id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, shipping_cents
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
           `
         )
           .bind(
@@ -250,7 +258,8 @@ export const onRequestPost = async (context: {
             session.amount_total ?? 0,
             customerEmail,
             shippingName,
-            JSON.stringify(shippingAddress ?? null)
+            JSON.stringify(shippingAddress ?? null),
+            shippingCents
           )
           .run();
         orderInsertSucceeded = fallbackResult.success;
@@ -443,6 +452,20 @@ async function assertOrdersTables(db: D1Database) {
   }
 }
 
+async function ensureShippingColumn(db: D1Database) {
+  const columns = await db.prepare(`PRAGMA table_info(orders);`).all<{ name: string }>();
+  const columnNames = new Set((columns.results || []).map((c) => c.name));
+  if (!columnNames.has('shipping_cents')) {
+    try {
+      await db.prepare(`ALTER TABLE orders ADD COLUMN shipping_cents INTEGER DEFAULT 0;`).run();
+      console.log('[stripe webhook] added shipping_cents column to orders');
+    } catch (err) {
+      console.error('[stripe webhook] failed to add shipping_cents column', err);
+      // Continue; insert attempts will surface errors if column truly missing.
+    }
+  }
+}
+
 async function handleCustomInvoicePayment(args: {
   db: D1Database;
   env: Env;
@@ -481,25 +504,26 @@ async function handleCustomInvoicePayment(args: {
   const amountCents = amountTotal ?? 0;
   const email = customerEmail || session.customer_details?.email || null;
 
-  let inserted = await db
-    .prepare(
-      `INSERT INTO orders (
-        id, display_order_id, order_type, stripe_payment_intent_id, total_cents, currency, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, description
-      ) VALUES (?, ?, 'custom', ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?);`
-    )
-    .bind(orderId, displayOrderId, paymentIntentId, amountCents, currency, email, description)
-    .run();
+      await ensureShippingColumn(db);
+      let inserted = await db
+        .prepare(
+          `INSERT INTO orders (
+        id, display_order_id, order_type, stripe_payment_intent_id, total_cents, currency, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, description, shipping_cents
+      ) VALUES (?, ?, 'custom', ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, ?);`
+        )
+    .bind(orderId, displayOrderId, paymentIntentId, amountCents, currency, email, description, shippingCents)
+        .run();
 
-  if (!inserted.success && inserted.error?.includes('no such column')) {
-    inserted = await db
-      .prepare(
-        `INSERT INTO orders (
-          id, display_order_id, stripe_payment_intent_id, total_cents, customer_email
-        ) VALUES (?, ?, ?, ?, ?);`
-      )
-      .bind(orderId, displayOrderId, paymentIntentId, amountCents, email)
-      .run();
-  }
+      if (!inserted.success && inserted.error?.includes('no such column')) {
+        inserted = await db
+          .prepare(
+            `INSERT INTO orders (
+          id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_cents
+        ) VALUES (?, ?, ?, ?, ?, ?);`
+          )
+      .bind(orderId, displayOrderId, paymentIntentId, amountCents, email, shippingCents)
+          .run();
+      }
 
   if (!inserted.success) {
     throw new Error('[webhooks] Failed to insert custom order record');

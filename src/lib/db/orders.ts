@@ -17,6 +17,7 @@ export type AdminOrder = {
   shippingAddress: Record<string, any> | null;
   cardLast4?: string | null;
   cardBrand?: string | null;
+  shippingCents?: number | null;
   items: AdminOrderItem[];
 };
 

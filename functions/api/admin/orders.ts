@@ -75,15 +75,16 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
 
     const productColumns = await context.env.DB.prepare(`PRAGMA table_info(products);`).all<{ name: string }>();
     const productCols = new Set((productColumns.results || []).map((c) => c.name));
-    const joinColumn = productCols.has('stripe_product_id')
-      ? 'stripe_product_id'
-      : productCols.has('stripe_product_id'.toUpperCase())
-      ? 'stripe_product_id'.toUpperCase()
-      : 'id';
+  const joinColumn = productCols.has('stripe_product_id')
+    ? 'stripe_product_id'
+    : productCols.has('stripe_product_id'.toUpperCase())
+    ? 'stripe_product_id'.toUpperCase()
+    : 'id';
 
-    const hasImageUrlsJson = productCols.has('image_urls_json');
-    const orderIds = (orderRows || []).map((o) => o.id);
-    let itemsByOrder: Record<string, OrderItemRow[]> = {};
+  const hasImageUrlsJson = productCols.has('image_urls_json');
+  const hasShippingCents = columnNames.includes('shipping_cents');
+  const orderIds = (orderRows || []).map((o) => o.id);
+  let itemsByOrder: Record<string, OrderItemRow[]> = {};
 
     if (orderIds.length) {
       const placeholders = orderIds.map(() => '?').join(',');
@@ -117,6 +118,7 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
       displayOrderId: o.display_order_id ?? null,
       createdAt: o.created_at,
       totalCents: o.total_cents ?? 0,
+      shippingCents: hasShippingCents ? (o as any).shipping_cents ?? 0 : 0,
       customerEmail: o.customer_email,
       shippingName: o.shipping_name,
       customerName: o.shipping_name,

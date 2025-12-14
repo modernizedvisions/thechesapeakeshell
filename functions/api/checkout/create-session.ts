@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { calculateShippingCents } from '../../_lib/shipping';
 
 type D1PreparedStatement = {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -125,6 +126,9 @@ export const onRequestPost = async (context: {
     }
 
     const priceId = product.stripe_price_id;
+    const subtotalCents = (product.price_cents ?? 0) * quantity;
+    const shippingCents = calculateShippingCents(subtotalCents);
+
     try {
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
@@ -133,6 +137,14 @@ export const onRequestPost = async (context: {
           {
             price: priceId,
             quantity,
+          },
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: { name: 'Shipping' },
+              unit_amount: shippingCents,
+            },
+            quantity: 1,
           },
         ],
         return_url: `${baseUrl}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
