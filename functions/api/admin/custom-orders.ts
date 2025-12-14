@@ -35,6 +35,7 @@ type CustomOrderPayload = {
 export async function onRequestGet(context: { env: { DB: D1Database } }): Promise<Response> {
   try {
     await ensureCustomOrdersSchema(context.env.DB);
+    console.log('[custom-orders] ensured schema');
     const statement = context.env.DB.prepare(`
       SELECT id, display_custom_order_id, customer_name, customer_email, description, amount, message_id, status, payment_link, created_at
       FROM custom_orders
@@ -42,6 +43,7 @@ export async function onRequestGet(context: { env: { DB: D1Database } }): Promis
     `);
     const { results } = await statement.all<CustomOrderRow>();
     const orders = (results || []).map(mapRow);
+    console.log('[custom-orders] fetched orders', { count: orders.length });
     return jsonResponse({ orders });
   } catch (err) {
     console.error('Failed to fetch custom orders', err);
@@ -52,6 +54,7 @@ export async function onRequestGet(context: { env: { DB: D1Database } }): Promis
 export async function onRequestPost(context: { env: { DB: D1Database }; request: Request }): Promise<Response> {
   try {
     await ensureCustomOrdersSchema(context.env.DB);
+    console.log('[custom-orders] ensured schema (post)');
     const body = (await context.request.json().catch(() => null)) as Partial<CustomOrderPayload> | null;
     if (!body || !body.customerName || !body.customerEmail || !body.description) {
       return jsonResponse({ error: 'customerName, customerEmail, and description are required.' }, 400);
@@ -95,6 +98,7 @@ export async function onRequestPost(context: { env: { DB: D1Database }; request:
 export async function onRequestPatch(context: { env: { DB: D1Database }; request: Request; params: Record<string, string> }): Promise<Response> {
   try {
     await ensureCustomOrdersSchema(context.env.DB);
+    console.log('[custom-orders] ensured schema (patch)');
     const id = context.params?.id;
     if (!id) return jsonResponse({ error: 'Missing id' }, 400);
 
