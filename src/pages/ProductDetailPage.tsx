@@ -12,6 +12,7 @@ export function ProductDetailPage() {
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
   const isOneOffInCart = useCartStore((state) => state.isOneOffInCart);
+  const isProductInCart = useCartStore((state) => state.isProductInCart);
   const setCartDrawerOpen = useUIStore((state) => state.setCartDrawerOpen);
 
   const [product, setProduct] = useState<Product | null>(null);

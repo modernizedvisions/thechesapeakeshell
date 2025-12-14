@@ -2,6 +2,7 @@ import { X, Minus, Plus, Trash2 } from 'lucide-react';
 import { useCartStore } from '../../store/cartStore';
 import { useUIStore } from '../../store/uiStore';
 import { useNavigate } from 'react-router-dom';
+import { calculateShippingCents } from '../../lib/shipping';
 
 export function CartDrawer() {
   const isOpen = useUIStore((state) => state.isCartDrawerOpen);
@@ -13,6 +14,9 @@ export function CartDrawer() {
   const navigate = useNavigate();
 
   if (!isOpen) return null;
+
+  const shippingCents = calculateShippingCents(getSubtotal);
+  const totalCents = getSubtotal + shippingCents;
 
   const handleCheckout = () => {
     if (!items.length) return;
@@ -100,9 +104,19 @@ export function CartDrawer() {
 
         {items.length > 0 && (
           <div className="p-4 border-t border-gray-200">
-            <div className="flex justify-between mb-4 text-lg font-bold">
-              <span>Subtotal</span>
-              <span>${(getSubtotal / 100).toFixed(2)}</span>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Subtotal</span>
+                <span className="font-semibold text-gray-900">${(getSubtotal / 100).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Shipping</span>
+                <span className="font-semibold text-gray-900">${(shippingCents / 100).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-gray-200 text-base font-bold">
+                <span>Total</span>
+                <span>${(totalCents / 100).toFixed(2)}</span>
+              </div>
             </div>
             <button
               onClick={handleCheckout}

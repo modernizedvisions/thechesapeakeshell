@@ -4,6 +4,7 @@ import { calculateShippingCents } from '../../_lib/shipping';
 type D1PreparedStatement = {
   bind(...values: unknown[]): D1PreparedStatement;
   first<T>(): Promise<T | null>;
+  all<T>(): Promise<{ results: T[] }>;
 };
 
 type D1Database = {
@@ -62,60 +63,89 @@ export const onRequestPost = async (context: {
   console.log('Stripe secret present?', !!stripeSecretKey);
 
   try {
-    const body = (await request.json()) as { productId?: string; quantity?: number };
-    const productId = body.productId?.trim();
-    const requestedQuantity = Math.max(1, Number(body.quantity || 1));
-
-    if (!productId) {
-      return json({ error: 'productId is required' }, 400);
+    const body = (await request.json()) as { items?: { productId?: string; quantity?: number }[] };
+    const itemsPayload = Array.isArray(body.items) ? body.items : [];
+    if (!itemsPayload.length) {
+      return json({ error: 'At least one item is required' }, 400);
     }
 
-    const product = await env.DB.prepare(
+    const normalizedItems = itemsPayload
+      .map((i) => ({
+        productId: i.productId?.trim(),
+        quantity: Math.max(1, Number(i.quantity || 1)),
+      }))
+      .filter((i) => i.productId);
+
+    if (!normalizedItems.length) {
+      return json({ error: 'Invalid items' }, 400);
+    }
+
+    const summedByProduct = normalizedItems.reduce<Record<string, number>>((acc, item) => {
+      if (!item.productId) return acc;
+      acc[item.productId] = (acc[item.productId] || 0) + item.quantity;
+      return acc;
+    }, {});
+
+    const productIds = Object.keys(summedByProduct);
+    if (!productIds.length) {
+      return json({ error: 'No products to checkout' }, 400);
+    }
+
+    const placeholders = productIds.map(() => '?').join(',');
+    const productsRes = await env.DB.prepare(
       `
       SELECT id, name, slug, description, price_cents, category, image_url, image_urls_json, is_active,
              is_one_off, is_sold, quantity_available, stripe_price_id, stripe_product_id, collection, created_at
       FROM products
-      WHERE id = ? OR stripe_product_id = ?
-      LIMIT 1;
+      WHERE id IN (${placeholders}) OR stripe_product_id IN (${placeholders});
     `
     )
-      .bind(productId, productId)
-      .first<ProductRow>();
+      .bind(...productIds, ...productIds)
+      .all<ProductRow>();
 
-    console.log('create-session productId', productId);
-    console.log('create-session product row', product);
-
-    if (!product) {
-      return json({ error: 'Product not found' }, 404);
+    const products = productsRes.results || [];
+    console.log('create-session products fetched', { requested: productIds.length, found: products.length });
+    const productMap = new Map<string, ProductRow>();
+    for (const p of products) {
+      if (p.id) productMap.set(p.id, p);
+      if (p.stripe_product_id) productMap.set(p.stripe_product_id, p);
     }
 
-    if (product.is_active === 0) {
-      return json({ error: 'Product is inactive' }, 400);
-    }
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+    let subtotalCents = 0;
 
-    if (product.is_sold === 1) {
-      return json({ error: 'Product is already sold' }, 400);
-    }
+    for (const pid of productIds) {
+      const product = productMap.get(pid);
+      if (!product) {
+        return json({ error: `Product not found: ${pid}` }, 404);
+      }
+      if (product.is_active === 0) {
+        return json({ error: `Product inactive: ${product.name || pid}` }, 400);
+      }
+      if (product.is_sold === 1) {
+        return json({ error: `Product already sold: ${product.name || pid}` }, 400);
+      }
+      if (product.price_cents === null || product.price_cents === undefined) {
+        return json({ error: `Product missing price: ${product.name || pid}` }, 400);
+      }
+      if (!product.stripe_price_id) {
+        return json({ error: `Product missing Stripe price: ${product.name || pid}` }, 400);
+      }
+      const requestedQuantity = summedByProduct[pid] || 1;
+      const quantity =
+        product.is_one_off === 1
+          ? 1
+          : Math.min(requestedQuantity, product.quantity_available ?? requestedQuantity);
 
-    if (product.price_cents === null || product.price_cents === undefined) {
-      return json({ error: 'Product is missing a price' }, 400);
-    }
+      if (product.quantity_available !== null && product.quantity_available !== undefined && quantity > product.quantity_available) {
+        return json({ error: `Requested quantity exceeds available inventory for ${product.name || pid}` }, 400);
+      }
 
-    if (!product.stripe_price_id) {
-      return json({ error: 'This product has no Stripe price configured.' }, 400);
-    }
-
-    if (product.quantity_available !== null && product.quantity_available !== undefined && product.quantity_available <= 0) {
-      return json({ error: 'Product is sold out' }, 400);
-    }
-
-    const quantity =
-      product.is_one_off === 1
-        ? 1
-        : Math.min(requestedQuantity, product.quantity_available ?? requestedQuantity);
-
-    if (product.quantity_available !== null && product.quantity_available !== undefined && quantity > product.quantity_available) {
-      return json({ error: 'Requested quantity exceeds available inventory' }, 400);
+      lineItems.push({
+        price: product.stripe_price_id,
+        quantity,
+      });
+      subtotalCents += (product.price_cents ?? 0) * quantity;
     }
 
     const stripe = createStripeClient(stripeSecretKey);
@@ -125,8 +155,6 @@ export const onRequestPost = async (context: {
       return json({ error: 'Server configuration error: missing site URL' }, 500);
     }
 
-    const priceId = product.stripe_price_id;
-    const subtotalCents = (product.price_cents ?? 0) * quantity;
     const shippingCents = calculateShippingCents(subtotalCents);
 
     try {
@@ -134,10 +162,7 @@ export const onRequestPost = async (context: {
         mode: 'payment',
         ui_mode: 'embedded',
         line_items: [
-          {
-            price: priceId,
-            quantity,
-          },
+          ...lineItems,
           {
             price_data: {
               currency: 'usd',
@@ -148,10 +173,7 @@ export const onRequestPost = async (context: {
           },
         ],
         return_url: `${baseUrl}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
-        metadata: {
-          product_id: product.id,
-          product_slug: product.slug || '',
-        },
+        metadata: {},
         consent_collection: {
           promotions: 'auto',
         },

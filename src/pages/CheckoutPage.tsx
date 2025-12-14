@@ -5,11 +5,13 @@ import { BannerMessage } from '../components/BannerMessage';
 import { createEmbeddedCheckoutSession, fetchProductById } from '../lib/api';
 import type { Product } from '../lib/types';
 import { useCartStore } from '../store/cartStore';
+import { calculateShippingCents } from '../lib/shipping';
 
 export function CheckoutPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const cartItems = useCartStore((state) => state.items);
+  const cartSubtotal = useCartStore((state) => state.getSubtotal());
   const stripeContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -27,12 +29,6 @@ export function CheckoutPage() {
     let isCancelled = false;
 
     const load = async () => {
-      if (!targetProductId) {
-        setError('No product selected for checkout.');
-        setLoading(false);
-        return;
-      }
-
       if (!publishableKey) {
         console.error('VITE_STRIPE_PUBLISHABLE_KEY is missing on the client');
         setError('Stripe is not configured');
@@ -42,27 +38,44 @@ export function CheckoutPage() {
 
       try {
         setLoading(true);
-        console.log('checkout: targetProductId', targetProductId);
-        const found = await fetchProductById(targetProductId);
-        console.log('checkout: fetched product', found);
+        if (cartItems.length === 0 && !targetProductId) {
+          throw new Error('No products in cart.');
+        }
 
-        if (!found) {
-          throw new Error('Product not found.');
-        }
-        if (found.isSold) {
-          throw new Error('This piece has already been sold.');
-        }
-        if (!found.priceCents) {
-          throw new Error('This product is missing pricing details.');
-        }
-        if (!found.stripePriceId) {
-          throw new Error('This product has no Stripe price configured.');
+        let displayProduct: Product | null = null;
+        if (targetProductId) {
+          console.log('checkout: targetProductId', targetProductId);
+          const found = await fetchProductById(targetProductId);
+          console.log('checkout: fetched product', found);
+
+          if (!found) {
+            throw new Error('Product not found.');
+          }
+          if (found.isSold) {
+            throw new Error('This piece has already been sold.');
+          }
+          if (!found.priceCents) {
+            throw new Error('This product is missing pricing details.');
+          }
+          if (!found.stripePriceId) {
+            throw new Error('This product has no Stripe price configured.');
+          }
+          displayProduct = found;
+        } else {
+          // No single target product; use first cart item for display only.
+          displayProduct = cartItems[0] as any;
         }
 
         if (isCancelled) return;
-        setProduct(found);
+        setProduct(displayProduct);
 
-        const session = await createEmbeddedCheckoutSession(found.id, 1);
+        const sessionItems = cartItems.length
+          ? cartItems.map((ci) => ({ productId: ci.productId, quantity: ci.quantity }))
+          : targetProductId
+          ? [{ productId: targetProductId, quantity: 1 }]
+          : [];
+
+        const session = await createEmbeddedCheckoutSession(sessionItems);
         console.log('checkout: session response', session);
         if (isCancelled) return;
         setClientSecret(session.clientSecret);
@@ -118,6 +131,10 @@ export function CheckoutPage() {
     if (!product?.priceCents) return '';
     return `$${(product.priceCents / 100).toFixed(2)}`;
   }, [product]);
+
+  const shippingCents = calculateShippingCents(cartSubtotal || (product?.priceCents ?? 0));
+  const subtotalDisplay = `$${((cartSubtotal || product?.priceCents || 0) / 100).toFixed(2)}`;
+  const totalDisplay = `$${(((cartSubtotal || product?.priceCents || 0) + shippingCents) / 100).toFixed(2)}`;
 
   if (loading) {
     return (
@@ -175,6 +192,20 @@ export function CheckoutPage() {
               {product?.description && (
                 <p className="text-xs text-gray-600 leading-snug line-clamp-3">{product.description}</p>
               )}
+              <div className="border-t border-gray-200 pt-3 space-y-1 text-sm">
+                <div className="flex justify-between text-gray-700">
+                  <span>Subtotal</span>
+                  <span className="font-medium">{subtotalDisplay}</span>
+                </div>
+                <div className="flex justify-between text-gray-700">
+                  <span>Shipping</span>
+                  <span className="font-medium">${(shippingCents / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-gray-200 text-base font-semibold text-gray-900">
+                  <span>Total</span>
+                  <span>{totalDisplay}</span>
+                </div>
+              </div>
             </div>
           </div>
 

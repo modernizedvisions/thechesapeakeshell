@@ -182,32 +182,48 @@ export const onRequestPost = async (context: {
           currency: session.currency || 'usd',
           customerEmail,
         });
-      } else if (productId) {
-        const result = await env.DB.prepare(
-          `
-          UPDATE products
-          SET
-            quantity_available = CASE
-              WHEN quantity_available IS NULL THEN 0
-              WHEN quantity_available > 0 THEN quantity_available - 1
-              ELSE 0
-            END,
-            is_sold = CASE
-              WHEN quantity_available IS NULL THEN 1
-              WHEN quantity_available <= 1 THEN 1
-              ELSE is_sold
-            END
-          WHERE id = ?;
-        `
-        )
-          .bind(productId)
-          .run();
-
-        if (!result.success) {
-          console.error('Failed to update product as sold', result.error);
-        }
       } else {
-        console.warn('Checkout session missing product_id metadata');
+        // Update inventory for all line items (skip shipping)
+        const lineItems = session.line_items?.data || [];
+        const aggregate: Record<string, number> = {};
+        for (const line of lineItems) {
+          const desc = line.description || (line.price as any)?.product_data?.name;
+          if (desc && desc.toLowerCase().includes('shipping')) continue;
+          const productIdFromPrice =
+            typeof line.price?.product === 'string'
+              ? line.price.product
+              : (line.price?.product as Stripe.Product | undefined)?.id;
+          const key = productIdFromPrice || (typeof line.price?.id === 'string' ? line.price.id : null) || productId || 'unknown';
+          const qty = line.quantity ?? 1;
+          if (!key) continue;
+          aggregate[key] = (aggregate[key] || 0) + qty;
+        }
+
+        for (const [key, qty] of Object.entries(aggregate)) {
+          const updateResult = await env.DB.prepare(
+            `
+            UPDATE products
+            SET
+              quantity_available = CASE
+                WHEN quantity_available IS NULL THEN 0
+                WHEN quantity_available > ? THEN quantity_available - ?
+                ELSE 0
+              END,
+              is_sold = CASE
+                WHEN quantity_available IS NULL THEN 1
+                WHEN quantity_available <= ? THEN 1
+                ELSE is_sold
+              END
+            WHERE stripe_product_id = ? OR id = ?;
+          `
+          )
+            .bind(qty, qty, qty, key, key)
+            .run();
+
+          if (!updateResult.success) {
+            console.error('Failed to update product as sold', { key, error: updateResult.error });
+          }
+        }
       }
 
       console.log('[stripe webhook] inserting order', {

@@ -11,10 +11,12 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem);
   const isOneOffInCart = useCartStore((state) => state.isOneOffInCart);
+  const isProductInCart = useCartStore((state) => state.isProductInCart);
   const setCartDrawerOpen = useUIStore((state) => state.setCartDrawerOpen);
   const navigate = useNavigate();
 
-  const isDisabled = product.oneoff && isOneOffInCart(product.id);
+  const inCart = isProductInCart(product.id);
+  const isDisabled = product.oneoff && inCart;
   const isSold = product.isSold || (product.quantityAvailable !== undefined && product.quantityAvailable <= 0);
   const isPurchaseReady = !!product.priceCents && !isSold;
 
@@ -57,6 +59,14 @@ export function ProductCard({ product }: ProductCardProps) {
           <h3 className="text-sm font-medium text-slate-900 truncate">{product.name}</h3>
           <span className="text-sm font-semibold text-slate-900 whitespace-nowrap">{priceLabel}</span>
         </div>
+
+        {product.oneoff && inCart && (
+          <div className="mb-2">
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700 border border-gray-200">
+              In Your Cart
+            </span>
+          </div>
+        )}
 
         {isSold && (
           <div className="mb-2">

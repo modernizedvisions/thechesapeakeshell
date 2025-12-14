@@ -8,6 +8,7 @@ interface CartStore {
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
   isOneOffInCart: (productId: string) => boolean;
+  isProductInCart: (productId: string) => boolean;
   getTotalItems: () => number;
   getSubtotal: () => number;
 }
@@ -125,6 +126,10 @@ export const useCartStore = create<CartStore>((set, get) => ({
   isOneOffInCart: (productId: string) => {
     const items = get().items;
     return items.some((item) => item.productId === productId && item.oneoff);
+  },
+
+  isProductInCart: (productId: string) => {
+    return get().items.some((item) => item.productId === productId);
   },
 
   getTotalItems: () => {

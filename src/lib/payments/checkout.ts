@@ -20,14 +20,15 @@ export interface CheckoutSessionInfo {
   cardBrand?: string | null;
 }
 
-export async function createEmbeddedCheckoutSession(productId: string, quantity = 1): Promise<EmbeddedCheckoutSession> {
+export async function createEmbeddedCheckoutSession(items: { productId: string; quantity: number }[]): Promise<EmbeddedCheckoutSession> {
+  const payload = { items };
   const response = await fetch('/api/checkout/create-session', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
-    body: JSON.stringify({ productId, quantity }),
+    body: JSON.stringify(payload),
   });
 
   let data: any = {};
