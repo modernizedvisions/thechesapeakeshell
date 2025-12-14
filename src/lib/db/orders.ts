@@ -50,7 +50,10 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
 
   const orders = Array.isArray(data.orders) ? (data.orders as AdminOrder[]) : [];
   if (import.meta.env.DEV) {
-    console.debug('[admin orders] parsed orders', { count: orders.length, sample: orders.slice(0, 2) });
+    console.debug('[admin orders] parsed orders', { count: orders.length, sample: orders.slice(0, 2), raw: data });
+    if (orders.length === 0) {
+      console.debug('[admin orders] empty orders array returned from /api/admin/orders');
+    }
   }
   return orders;
 }

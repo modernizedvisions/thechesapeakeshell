@@ -36,7 +36,10 @@ export function AdminOrdersTab({ searchQuery, filteredOrders, onSearchChange, on
           Failed to load orders{error ? `: ${error}` : ''}
         </div>
       ) : filteredOrders.length === 0 ? (
-        <div className="p-8 text-center text-gray-500">No orders found</div>
+        <div className="p-8 text-center text-gray-500">
+          <div>No orders found</div>
+          <div className="text-xs text-gray-400 mt-1">Endpoint: /api/admin/orders</div>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">

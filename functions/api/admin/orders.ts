@@ -43,6 +43,7 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
       );
       const res = await ordersWithCardStmt.all<OrderRow>();
       orderRows = res.results || [];
+      console.log('[admin/orders] fetched orders with card fields', { count: orderRows.length });
     } catch {
       const fallbackStmt = context.env.DB.prepare(
         `SELECT id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, created_at
@@ -50,6 +51,7 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
       );
       const res = await fallbackStmt.all<OrderRow>();
       orderRows = res.results || [];
+      console.log('[admin/orders] fetched orders fallback', { count: orderRows.length });
     }
 
     const orderIds = (orderRows || []).map((o) => o.id);
@@ -72,6 +74,7 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
         return acc;
       }, {} as Record<string, OrderItemRow[]>);
     }
+    console.log('[admin/orders] attaching items', { orders: orderRows.length, withItems: Object.keys(itemsByOrder).length });
 
     const orders = (orderRows || []).map((o) => ({
       id: o.id,
