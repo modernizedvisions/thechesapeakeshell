@@ -5,16 +5,22 @@ import { AdminSectionHeader } from './AdminSectionHeader';
 
 interface AdminCustomOrdersTabProps {
   allCustomOrders: any[];
-  onCreateOrder: (data: any) => void;
+  onCreateOrder: (data: any) => Promise<void> | void;
+  onMarkPaid?: (id: string) => Promise<void> | void;
   initialDraft?: any;
   onDraftConsumed?: () => void;
+  isLoading?: boolean;
+  error?: string | null;
 }
 
 export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
   allCustomOrders,
   onCreateOrder,
+  onMarkPaid,
   initialDraft,
   onDraftConsumed,
+  isLoading,
+  error,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const draftDefaults = useMemo(() => {
@@ -77,7 +83,11 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
       </div>
 
       <div className="rounded-md border border-gray-200">
-        {allCustomOrders.length === 0 ? (
+        {isLoading ? (
+          <div className="p-4 text-sm text-gray-600">Loading custom orders...</div>
+        ) : error ? (
+          <div className="p-4 text-sm text-red-600">Failed to load custom orders: {error}</div>
+        ) : allCustomOrders.length === 0 ? (
           <div className="p-4 text-sm text-gray-600">No custom orders yet.</div>
         ) : (
           <div className="overflow-x-auto">
@@ -132,6 +142,7 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
                           className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:border-gray-400"
                           disabled={statusLabel === 'paid'}
                           title={statusLabel === 'paid' ? 'Already paid' : ''}
+                          onClick={() => onMarkPaid?.(order.id)}
                         >
                           Mark Paid
                         </button>
@@ -161,8 +172,8 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
           <div className="space-y-4">
             <form
               className="space-y-4"
-              onSubmit={handleSubmit((values) => {
-                onCreateOrder(values);
+              onSubmit={handleSubmit(async (values) => {
+                await onCreateOrder(values);
                 setIsModalOpen(false);
               })}
             >

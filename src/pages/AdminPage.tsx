@@ -22,6 +22,7 @@ import { AdminMessagesTab } from '../components/admin/AdminMessagesTab';
 import { AdminShopTab } from '../components/admin/AdminShopTab';
 import { AdminCustomOrdersTab } from '../components/admin/AdminCustomOrdersTab';
 import { OrderDetailsModal } from '../components/admin/OrderDetailsModal';
+import { getAdminCustomOrders, createAdminCustomOrder, updateAdminCustomOrder } from '../lib/db/customOrders';
 
 export type ProductFormState = {
   name: string;
@@ -94,6 +95,8 @@ export function AdminPage() {
   const [messages] = useState<any[]>([]);
   const [customOrders, setCustomOrders] = useState<any[]>([]);
   const [customOrderDraft, setCustomOrderDraft] = useState<any>(null);
+  const [customOrdersError, setCustomOrdersError] = useState<string | null>(null);
+  const [isLoadingCustomOrders, setIsLoadingCustomOrders] = useState(false);
 
   const filteredOrders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -217,6 +220,22 @@ export function AdminPage() {
     }
 
     await loadAdminProducts();
+    await loadCustomOrders();
+  };
+
+  const loadCustomOrders = async () => {
+    setIsLoadingCustomOrders(true);
+    try {
+      const orders = await getAdminCustomOrders();
+      setCustomOrders(orders);
+      setCustomOrdersError(null);
+    } catch (err) {
+      console.error('Failed to load custom orders', err);
+      setCustomOrders([]);
+      setCustomOrdersError(err instanceof Error ? err.message : 'Failed to load custom orders');
+    } finally {
+      setIsLoadingCustomOrders(false);
+    }
   };
 
   const handleLogout = () => {
@@ -680,9 +699,32 @@ export function AdminPage() {
         {activeTab === 'customOrders' && (
           <AdminCustomOrdersTab
             allCustomOrders={customOrders}
-            onCreateOrder={(order) => setCustomOrders((prev) => [...prev, { id: crypto.randomUUID(), ...order }])}
+            onCreateOrder={async (order) => {
+              try {
+                await createAdminCustomOrder({
+                  customerName: order.customerName,
+                  customerEmail: order.customerEmail,
+                  description: order.description,
+                  amount: order.amount ? Math.round(Number(order.amount) * 100) : undefined,
+                  messageId: order.messageId ?? null,
+                });
+                await loadCustomOrders();
+              } catch (err) {
+                console.error('Failed to create custom order', err);
+              }
+            }}
             initialDraft={customOrderDraft}
             onDraftConsumed={() => setCustomOrderDraft(null)}
+            isLoading={isLoadingCustomOrders}
+            error={customOrdersError}
+            onMarkPaid={async (orderId: string) => {
+              try {
+                await updateAdminCustomOrder(orderId, { status: 'paid' });
+                await loadCustomOrders();
+              } catch (err) {
+                console.error('Failed to mark custom order paid', err);
+              }
+            }}
           />
         )}
 
