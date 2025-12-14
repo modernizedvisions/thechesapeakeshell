@@ -34,25 +34,43 @@ type OrderItemRow = {
 export const onRequestGet = async (context: { env: { DB: D1Database } }): Promise<Response> => {
   try {
     await assertOrdersTables(context.env.DB);
-    let orderRows: OrderRow[] = [];
-    // First try selecting card fields (may not exist in older schema).
-    try {
-      const ordersWithCardStmt = context.env.DB.prepare(
-        `SELECT id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, created_at
-         FROM orders ORDER BY datetime(created_at) DESC LIMIT 50;`
-      );
-      const res = await ordersWithCardStmt.all<OrderRow>();
-      orderRows = res.results || [];
-      console.log('[admin/orders] fetched orders with card fields', { count: orderRows.length });
-    } catch {
-      const fallbackStmt = context.env.DB.prepare(
-        `SELECT id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, created_at
-         FROM orders ORDER BY datetime(created_at) DESC LIMIT 50;`
-      );
-      const res = await fallbackStmt.all<OrderRow>();
-      orderRows = res.results || [];
-      console.log('[admin/orders] fetched orders fallback', { count: orderRows.length });
-    }
+    const columns = await context.env.DB.prepare(`PRAGMA table_info(orders);`).all<{ name: string }>();
+    const columnNames = (columns.results || []).map((c) => c.name);
+    const emailColumn = columnNames.includes('customer_email')
+      ? 'customer_email'
+      : columnNames.includes('customer_email1')
+      ? 'customer_email1'
+      : null;
+    const displayIdColumn = columnNames.includes('display_order_id') ? 'display_order_id' : null;
+    const cardLast4Column = columnNames.includes('card_last4') ? 'card_last4' : null;
+    const cardBrandColumn = columnNames.includes('card_brand') ? 'card_brand' : null;
+
+    const selectSql = `
+      SELECT
+        id,
+        ${displayIdColumn ? `${displayIdColumn} AS display_order_id` : 'NULL AS display_order_id'},
+        stripe_payment_intent_id,
+        total_cents,
+        ${emailColumn ? `${emailColumn} AS customer_email` : 'NULL AS customer_email'},
+        shipping_name,
+        shipping_address_json,
+        ${cardLast4Column ? `${cardLast4Column} AS card_last4` : 'NULL AS card_last4'},
+        ${cardBrandColumn ? `${cardBrandColumn} AS card_brand` : 'NULL AS card_brand'},
+        created_at
+      FROM orders
+      ORDER BY datetime(created_at) DESC
+      LIMIT 50;
+    `;
+
+    const res = await context.env.DB.prepare(selectSql).all<OrderRow>();
+    const orderRows: OrderRow[] = res.results || [];
+    console.log('[admin/orders] detected columns', {
+      emailColumn,
+      displayIdColumn,
+      cardLast4Column,
+      cardBrandColumn,
+      count: orderRows.length,
+    });
 
     const orderIds = (orderRows || []).map((o) => o.id);
     let itemsByOrder: Record<string, OrderItemRow[]> = {};
