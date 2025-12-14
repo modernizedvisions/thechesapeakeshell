@@ -21,6 +21,7 @@ import { AdminHomeTab } from '../components/admin/AdminHomeTab';
 import { AdminMessagesTab } from '../components/admin/AdminMessagesTab';
 import { AdminShopTab } from '../components/admin/AdminShopTab';
 import { AdminCustomOrdersTab } from '../components/admin/AdminCustomOrdersTab';
+import { OrderDetailsModal } from '../components/admin/OrderDetailsModal';
 
 export type ProductFormState = {
   name: string;
@@ -726,119 +727,13 @@ export function AdminPage() {
       </div>
     </div>
 
-    {selectedOrder && (
-      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-        <div className="bg-white rounded-xl shadow-lg max-w-xl w-full mx-4 p-6 relative">
-          <button
-            type="button"
-            onClick={() => setSelectedOrder(null)}
-            className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-sm"
-          >
-            Close
-          </button>
-
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Order {selectedOrder.displayOrderId || selectedOrder.id}
-            </h2>
-            <p className="text-xs text-gray-500">
-              Placed on {new Date(selectedOrder.createdAt).toLocaleString()}
-            </p>
-          </div>
-
-          <div className="space-y-4 text-sm">
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                Customer
-              </h3>
-              <p className="font-medium text-gray-900">
-                {selectedOrder.customerName || selectedOrder.shippingName || 'Unknown customer'}
-              </p>
-              {selectedOrder.customerEmail && (
-                <p className="text-gray-600">{selectedOrder.customerEmail}</p>
-              )}
-            </div>
-
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                Shipping Address
-              </h3>
-              {selectedOrder.shippingAddress ? (
-                <div className="text-gray-700">
-                  {selectedOrder.shippingAddress.line1 && (
-                    <p>{selectedOrder.shippingAddress.line1}</p>
-                  )}
-                  {selectedOrder.shippingAddress.line2 && (
-                    <p>{selectedOrder.shippingAddress.line2}</p>
-                  )}
-                  {(selectedOrder.shippingAddress.city ||
-                    selectedOrder.shippingAddress.state ||
-                    selectedOrder.shippingAddress.postal_code) && (
-                    <p>
-                      {[selectedOrder.shippingAddress.city, selectedOrder.shippingAddress.state, selectedOrder.shippingAddress.postal_code]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </p>
-                  )}
-                  {selectedOrder.shippingAddress.country && (
-                    <p>{selectedOrder.shippingAddress.country}</p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-gray-500">No shipping address recorded.</p>
-              )}
-            </div>
-
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                Payment
-              </h3>
-              <p className="text-gray-700">
-                Total: {formatCurrency(selectedOrder.totalCents)}
-              </p>
-              {selectedOrder.cardLast4 ? (
-                <p className="text-gray-600">
-                  Paid with {selectedOrder.cardBrand || 'card'} ending in{' '}
-                  {selectedOrder.cardLast4}
-                </p>
-              ) : (
-                <p className="text-gray-500">No card details available.</p>
-              )}
-            </div>
-
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                Items
-              </h3>
-              {selectedOrder.items && selectedOrder.items.length > 0 ? (
-                <div className="divide-y divide-gray-200 border border-gray-200 rounded-md">
-                  {selectedOrder.items.map((item) => (
-                    <div
-                      key={item.productId + (item.productName ?? '')}
-                      className="flex items-center justify-between px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {item.productName || 'Item'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Qty: {item.quantity}
-                        </p>
-                      </div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(item.priceCents * item.quantity)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500">No items recorded for this order.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
+        {selectedOrder && (
+        <OrderDetailsModal
+          open={!!selectedOrder}
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
+        )}
     </>
   );
 }
