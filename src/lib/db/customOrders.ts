@@ -117,3 +117,28 @@ export async function updateAdminCustomOrder(
     throw new Error(message);
   }
 }
+
+export async function sendAdminCustomOrderPaymentLink(
+  id: string
+): Promise<{ paymentLink: string; sessionId: string; emailOk?: boolean }> {
+  const res = await fetch(`${ADMIN_CUSTOM_ORDERS_PATH}/${encodeURIComponent(id)}/send-payment-link`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message =
+      (data && (data.error || data.detail)) ||
+      `Failed to send payment link (${res.status})`;
+    throw new Error(message);
+  }
+
+  return {
+    paymentLink: data.paymentLink as string,
+    sessionId: data.sessionId as string,
+    emailOk: data.emailOk,
+  };
+}

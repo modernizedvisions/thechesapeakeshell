@@ -8,6 +8,7 @@ interface AdminCustomOrdersTabProps {
   onCreateOrder: (data: any) => Promise<void> | void;
   onMarkPaid?: (id: string) => Promise<void> | void;
   onReloadOrders?: () => Promise<void> | void;
+  onSendPaymentLink?: (id: string) => Promise<void> | void;
   initialDraft?: any;
   onDraftConsumed?: () => void;
   isLoading?: boolean;
@@ -19,6 +20,7 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
   onCreateOrder,
   onMarkPaid,
   onReloadOrders,
+  onSendPaymentLink,
   initialDraft,
   onDraftConsumed,
   isLoading,
@@ -121,14 +123,15 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
               <tbody className="divide-y divide-gray-200 bg-white text-gray-900">
                 {allCustomOrders.map((order) => {
                   const amount = typeof order.amount === 'number' ? order.amount : null;
-                  const amountLabel = amount !== null ? `$${(amount / 100).toFixed(2)}` : '—';
+                  const amountLabel = amount !== null ? `$${(amount / 100).toFixed(2)}` : '–';
                   const statusLabel = order.status || 'pending';
-                  const displayId = order.displayCustomOrderId || order.display_custom_order_id || order.id || '—';
+                  const displayId = order.displayCustomOrderId || order.display_custom_order_id || order.id || '–';
+                  const hasPaymentLink = !!order.paymentLink;
                   return (
                     <tr key={order.id}>
                       <td className="px-4 py-2 font-mono text-xs text-gray-700">{displayId}</td>
                       <td className="px-4 py-2">{order.customerName || 'Customer'}</td>
-                      <td className="px-4 py-2">{order.customerEmail || '—'}</td>
+                      <td className="px-4 py-2">{order.customerEmail || '–'}</td>
                       <td className="px-4 py-2">{amountLabel}</td>
                       <td className="px-4 py-2 capitalize">{statusLabel}</td>
                       <td className="px-4 py-2 text-xs">
@@ -138,11 +141,12 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
                             target="_blank"
                             rel="noreferrer"
                             className="text-blue-600 hover:underline"
+                            title={order.paymentLink}
                           >
                             Link
                           </a>
                         ) : (
-                          '—'
+                          '–'
                         )}
                       </td>
                       <td className="px-4 py-2 text-right space-x-2">
@@ -163,11 +167,12 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
                         </button>
                         <button
                           type="button"
-                          className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 opacity-60 cursor-not-allowed"
-                          disabled
-                          title="Stripe payment link not yet configured; implement after Resend + Stripe step."
+                          className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                          disabled={statusLabel === 'paid'}
+                          title={statusLabel === 'paid' ? 'Already paid' : hasPaymentLink ? 'Resend payment link' : ''}
+                          onClick={() => onSendPaymentLink?.(order.id)}
                         >
-                          Send Payment Link
+                          {hasPaymentLink ? 'Resend Payment Link' : 'Send Payment Link'}
                         </button>
                       </td>
                     </tr>

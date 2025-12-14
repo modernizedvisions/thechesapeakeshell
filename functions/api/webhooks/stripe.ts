@@ -166,6 +166,8 @@ export const onRequestPost = async (context: {
       const quantityFromMeta = session.metadata?.quantity ? Number(session.metadata.quantity) : 1;
 
       const invoiceId = session.metadata?.invoiceId;
+      const customOrderId = session.metadata?.customOrderId;
+      const customSource = session.metadata?.source === 'custom_order';
       const shippingCentsFromStripe = (session.total_details as any)?.amount_shipping ?? null;
       const inferredShipping = shippingCentsFromStripe !== null && shippingCentsFromStripe !== undefined
         ? Number(shippingCentsFromStripe)
@@ -181,6 +183,18 @@ export const onRequestPost = async (context: {
           amountTotal: session.amount_total ?? 0,
           currency: session.currency || 'usd',
           customerEmail,
+        });
+      } else if (customOrderId || customSource) {
+        await handleCustomOrderPayment({
+          db: env.DB,
+          session,
+          paymentIntentId,
+          customerEmail,
+          shippingName,
+          shippingAddress,
+          cardLast4,
+          cardBrand,
+          shippingCents,
         });
       } else {
         // Update inventory for all line items (skip shipping)
@@ -226,133 +240,19 @@ export const onRequestPost = async (context: {
         }
       }
 
-      console.log('[stripe webhook] inserting order', {
-        sessionId: session.id,
+      await insertStandardOrderAndItems({
+        db: env.DB,
+        session,
         paymentIntentId,
-        hasLineItems: !!session.line_items?.data?.length,
+        customerEmail,
+        shippingName,
+        shippingAddress,
+        cardLast4,
+        cardBrand,
+        shippingCents,
+        productId,
+        quantityFromMeta,
       });
-      await assertOrdersTables(env.DB);
-      const orderId = crypto.randomUUID();
-      const displayOrderId = await generateDisplayOrderId(env.DB);
-      await ensureShippingColumn(env.DB);
-      const insertWithCard = await env.DB.prepare(
-        `
-          INSERT INTO orders (
-            id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, shipping_cents
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-        `
-      )
-        .bind(
-          orderId,
-          displayOrderId,
-          paymentIntentId,
-          session.amount_total ?? 0,
-          customerEmail,
-          shippingName,
-          JSON.stringify(shippingAddress ?? null),
-          cardLast4,
-          cardBrand,
-          shippingCents
-        )
-        .run();
-
-      let orderInsertSucceeded = insertWithCard.success;
-
-      if (!insertWithCard.success && insertWithCard.error?.includes('no such column')) {
-        // Fallback for older schema without card fields.
-        const fallbackResult = await env.DB.prepare(
-          `
-            INSERT INTO orders (
-              id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, shipping_cents
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-          `
-        )
-          .bind(
-            orderId,
-            displayOrderId,
-            paymentIntentId,
-            session.amount_total ?? 0,
-            customerEmail,
-            shippingName,
-            JSON.stringify(shippingAddress ?? null),
-            shippingCents
-          )
-          .run();
-        orderInsertSucceeded = fallbackResult.success;
-        console.log('[stripe webhook] order insert fallback', {
-          orderId,
-          displayOrderId,
-          success: fallbackResult.success,
-          error: fallbackResult.error,
-        });
-      }
-
-      console.log('[stripe webhook] order insert result', {
-        orderId,
-        displayOrderId,
-        success: orderInsertSucceeded,
-        error: insertWithCard.error,
-      });
-
-      if (!orderInsertSucceeded) {
-        throw new Error(`Order insert failed for session ${session.id}`);
-      }
-
-      const lineItems = session.line_items?.data || [];
-      if (lineItems.length) {
-        for (const line of lineItems) {
-          const itemId = crypto.randomUUID();
-          const qty = line.quantity ?? 1;
-          const priceCents = line.price?.unit_amount ?? 0;
-          const productIdFromPrice =
-            typeof line.price?.product === 'string'
-              ? line.price.product
-              : (line.price?.product as Stripe.Product | undefined)?.id;
-          const resolvedProductId = productIdFromPrice || productId || line.price?.id || 'unknown';
-
-          const itemResult = await env.DB.prepare(
-            `
-              INSERT INTO order_items (id, order_id, product_id, quantity, price_cents)
-              VALUES (?, ?, ?, ?, ?);
-            `
-          )
-            .bind(itemId, orderId, resolvedProductId, qty, priceCents)
-            .run();
-
-          if (!itemResult.success) {
-            console.error('Failed to insert order_items into D1', itemResult.error);
-          }
-        }
-        console.log('[stripe webhook] inserted order and items', { orderId, displayOrderId, items: lineItems.length });
-      } else {
-        if (productId) {
-          const itemId = crypto.randomUUID();
-          const itemResult = await env.DB.prepare(
-            `
-              INSERT INTO order_items (id, order_id, product_id, quantity, price_cents)
-              VALUES (?, ?, ?, ?, ?);
-            `
-          )
-            .bind(
-              itemId,
-              orderId,
-              productId,
-              quantityFromMeta || 1,
-              session.amount_subtotal && quantityFromMeta > 0
-                ? Math.floor(session.amount_subtotal / (quantityFromMeta || 1))
-                : 0
-            )
-            .run();
-
-          if (!itemResult.success) {
-            console.error('Failed to insert order_items into D1 (fallback)', itemResult.error);
-          } else {
-            console.log('[stripe webhook] inserted order with fallback item', { orderId, displayOrderId, productId });
-          }
-        } else {
-          console.warn('[stripe webhook] no line items available to insert for session', { sessionId: session.id });
-        }
-      }
     }
 
     return new Response('ok', { status: 200 });
@@ -647,5 +547,342 @@ async function backfillDisplayOrderIds(db: D1Database) {
     console.error('Failed to backfill display order ids', error);
     await db.prepare('ROLLBACK;').run();
     throw error;
+  }
+}
+
+async function ensureCustomOrdersSchema(db: D1Database) {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS custom_orders (
+    id TEXT PRIMARY KEY,
+    display_custom_order_id TEXT,
+    customer_name TEXT,
+    customer_email TEXT,
+    description TEXT,
+    amount INTEGER,
+    message_id TEXT,
+    status TEXT DEFAULT 'pending',
+    payment_link TEXT,
+    stripe_session_id TEXT,
+    stripe_payment_intent_id TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );`).run();
+
+  const columns = await db.prepare(`PRAGMA table_info(custom_orders);`).all<{ name: string }>();
+  const names = (columns.results || []).map((c) => c.name);
+  if (!names.includes('display_custom_order_id')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN display_custom_order_id TEXT;`).run();
+  }
+  if (!names.includes('stripe_session_id')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_session_id TEXT;`).run();
+  }
+  if (!names.includes('stripe_payment_intent_id')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_payment_intent_id TEXT;`).run();
+  }
+}
+
+async function handleCustomOrderPayment(args: {
+  db: D1Database;
+  session: Stripe.Checkout.Session;
+  paymentIntentId: string | null;
+  customerEmail: string | null;
+  shippingName: string | null;
+  shippingAddress: Stripe.Address | Stripe.ShippingAddress | null;
+  cardLast4: string | null;
+  cardBrand: string | null;
+  shippingCents: number;
+}) {
+  const {
+    db,
+    session,
+    paymentIntentId,
+    customerEmail,
+    shippingName,
+    shippingAddress,
+    cardLast4,
+    cardBrand,
+    shippingCents,
+  } = args;
+
+  await ensureCustomOrdersSchema(db);
+  const columns = await db.prepare(`PRAGMA table_info(custom_orders);`).all<{ name: string }>();
+  const names = (columns.results || []).map((c) => c.name);
+  const emailCol = names.includes('customer_email')
+    ? 'customer_email'
+    : names.includes('customer_email1')
+    ? 'customer_email1'
+    : null;
+
+  const customOrderId = session.metadata?.customOrderId || null;
+  if (!customOrderId) {
+    console.warn('[custom order] metadata missing customOrderId');
+    return;
+  }
+
+  const customOrder = await db
+    .prepare(
+      `SELECT id, display_custom_order_id, customer_name, ${
+        emailCol ? `${emailCol} AS customer_email` : 'NULL AS customer_email'
+      }, description, amount, payment_link, stripe_session_id, stripe_payment_intent_id
+       FROM custom_orders WHERE id = ?`
+    )
+    .bind(customOrderId)
+    .first<{
+      id: string;
+      display_custom_order_id: string | null;
+      customer_name: string | null;
+      customer_email: string | null;
+      description: string | null;
+      amount: number | null;
+      payment_link: string | null;
+      stripe_session_id?: string | null;
+      stripe_payment_intent_id?: string | null;
+    }>();
+
+  if (!customOrder) {
+    console.warn('[custom order] not found for webhook', { customOrderId });
+    return;
+  }
+
+  // Idempotent: if already marked paid, stop after ensuring order exists.
+  const displayId = customOrder.display_custom_order_id || session.metadata?.customOrderDisplayId || customOrder.id;
+  const existingOrder = await db
+    .prepare(`SELECT id FROM orders WHERE stripe_payment_intent_id = ? OR display_order_id = ?`)
+    .bind(paymentIntentId, displayId)
+    .first<{ id: string }>();
+
+  const amount = customOrder.amount ?? 0;
+  const totalCents = session.amount_total ?? amount + shippingCents;
+  const description = customOrder.description || 'Custom order payment';
+
+  // Update custom order status and stripe ids
+  const update = await db
+    .prepare(
+      `UPDATE custom_orders
+       SET status = 'paid',
+           stripe_payment_intent_id = ?,
+           stripe_session_id = COALESCE(stripe_session_id, ?)
+       WHERE id = ?`
+    )
+    .bind(paymentIntentId, session.id, customOrder.id)
+    .run();
+  if (!update.success) {
+    console.error('[custom order] failed to update status', update.error);
+  }
+
+  if (customOrder.stripe_payment_intent_id || existingOrder) {
+    console.log('[custom order] already processed', { displayId, existingOrder: existingOrder?.id });
+    return;
+  }
+
+  // Insert into orders/order_items if not already present
+  await insertStandardOrderAndItems({
+    db,
+    session,
+    paymentIntentId,
+    customerEmail: customerEmail || customOrder.customer_email,
+    shippingName,
+    shippingAddress,
+    cardLast4,
+    cardBrand,
+    shippingCents,
+    productId: null,
+    quantityFromMeta: 1,
+    displayOrderIdOverride: displayId,
+    orderType: 'custom',
+    description,
+    lineItemsOverride: [
+      { productId: `custom_order:${customOrder.id}`, quantity: 1, priceCents: amount },
+      { productId: 'shipping', quantity: 1, priceCents: shippingCents },
+    ],
+    totalCentsOverride: totalCents,
+  });
+}
+
+async function insertStandardOrderAndItems(args: {
+  db: D1Database;
+  session: Stripe.Checkout.Session;
+  paymentIntentId: string | null;
+  customerEmail: string | null;
+  shippingName: string | null;
+  shippingAddress: Stripe.Address | Stripe.ShippingAddress | null;
+  cardLast4: string | null;
+  cardBrand: string | null;
+  shippingCents: number;
+  productId?: string | null;
+  quantityFromMeta?: number;
+  displayOrderIdOverride?: string | null;
+  orderType?: string | null;
+  description?: string | null;
+  lineItemsOverride?: { productId: string; quantity: number; priceCents: number }[];
+  totalCentsOverride?: number;
+}) {
+  const {
+    db,
+    session,
+    paymentIntentId,
+    customerEmail,
+    shippingName,
+    shippingAddress,
+    cardLast4,
+    cardBrand,
+    shippingCents,
+    productId,
+    quantityFromMeta,
+    displayOrderIdOverride,
+    orderType,
+    description,
+    lineItemsOverride,
+    totalCentsOverride,
+  } = args;
+
+  if (paymentIntentId) {
+    const existing = await db
+      .prepare(`SELECT id FROM orders WHERE stripe_payment_intent_id = ?`)
+      .bind(paymentIntentId)
+      .first<{ id: string }>();
+    if (existing) {
+      console.log('[orders] existing order found, skipping insert', { orderId: existing.id });
+      return;
+    }
+  }
+
+  await assertOrdersTables(db);
+  await ensureShippingColumn(db);
+
+  const orderId = crypto.randomUUID();
+  const displayOrderId = displayOrderIdOverride || (await generateDisplayOrderId(db));
+  const totalCents = totalCentsOverride ?? session.amount_total ?? 0;
+
+  console.log('[stripe webhook] inserting order', {
+    sessionId: session.id,
+    paymentIntentId,
+    hasLineItems: !!session.line_items?.data?.length,
+    displayOrderId,
+    orderType,
+  });
+
+  const insertWithCard = await db
+    .prepare(
+      `
+        INSERT INTO orders (
+          id, display_order_id, order_type, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, card_last4, card_brand, shipping_cents, description
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      `
+    )
+    .bind(
+      orderId,
+      displayOrderId,
+      orderType ?? null,
+      paymentIntentId,
+      totalCents,
+      customerEmail,
+      shippingName,
+      JSON.stringify(shippingAddress ?? null),
+      cardLast4,
+      cardBrand,
+      shippingCents,
+      description ?? null
+    )
+    .run();
+
+  let orderInsertSucceeded = insertWithCard.success;
+
+  if (!insertWithCard.success && insertWithCard.error?.includes('no such column')) {
+    const fallbackResult = await db
+      .prepare(
+        `
+          INSERT INTO orders (
+            id, display_order_id, stripe_payment_intent_id, total_cents, customer_email, shipping_name, shipping_address_json, shipping_cents
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        `
+      )
+      .bind(
+        orderId,
+        displayOrderId,
+        paymentIntentId,
+        totalCents,
+        customerEmail,
+        shippingName,
+        JSON.stringify(shippingAddress ?? null),
+        shippingCents
+      )
+      .run();
+    orderInsertSucceeded = fallbackResult.success;
+    console.log('[stripe webhook] order insert fallback', {
+      orderId,
+      displayOrderId,
+      success: fallbackResult.success,
+      error: fallbackResult.error,
+    });
+  }
+
+  console.log('[stripe webhook] order insert result', {
+    orderId,
+    displayOrderId,
+    success: orderInsertSucceeded,
+    error: insertWithCard.error,
+  });
+
+  if (!orderInsertSucceeded) {
+    throw new Error(`Order insert failed for session ${session.id}`);
+  }
+
+  const preparedLineItems =
+    lineItemsOverride ||
+    (session.line_items?.data || []).map((line) => {
+      const qty = line.quantity ?? 1;
+      const priceCents = line.price?.unit_amount ?? 0;
+      const productIdFromPrice =
+        typeof line.price?.product === 'string'
+          ? line.price.product
+          : (line.price?.product as Stripe.Product | undefined)?.id;
+      const resolvedProductId = productIdFromPrice || productId || line.price?.id || 'unknown';
+      return { productId: resolvedProductId as string, quantity: qty, priceCents };
+    });
+
+  if (preparedLineItems.length) {
+    for (const li of preparedLineItems) {
+      const itemId = crypto.randomUUID();
+      const itemResult = await db
+        .prepare(
+          `
+            INSERT INTO order_items (id, order_id, product_id, quantity, price_cents)
+            VALUES (?, ?, ?, ?, ?);
+          `
+        )
+        .bind(itemId, orderId, li.productId, li.quantity ?? 1, li.priceCents ?? 0)
+        .run();
+
+      if (!itemResult.success) {
+        console.error('Failed to insert order_items into D1', itemResult.error);
+      }
+    }
+    console.log('[stripe webhook] inserted order and items', { orderId, displayOrderId, items: preparedLineItems.length });
+  } else if (productId) {
+    const itemId = crypto.randomUUID();
+    const itemResult = await db
+      .prepare(
+        `
+          INSERT INTO order_items (id, order_id, product_id, quantity, price_cents)
+          VALUES (?, ?, ?, ?, ?);
+        `
+      )
+      .bind(
+        itemId,
+        orderId,
+        productId,
+        quantityFromMeta || 1,
+        session.amount_subtotal && (quantityFromMeta || 1) > 0
+          ? Math.floor(session.amount_subtotal / (quantityFromMeta || 1))
+          : 0
+      )
+      .run();
+
+    if (!itemResult.success) {
+      console.error('Failed to insert order_items into D1 (fallback)', itemResult.error);
+    } else {
+      console.log('[stripe webhook] inserted order with fallback item', { orderId, displayOrderId, productId });
+    }
+  } else {
+    console.warn('[stripe webhook] no line items available to insert for session', { sessionId: session.id });
   }
 }

@@ -8,6 +8,8 @@ export type SendEmailArgs = {
 
 export type EmailEnv = {
   RESEND_API_KEY?: string;
+  RESEND_FROM_EMAIL?: string;
+  RESEND_REPLY_TO?: string;
   EMAIL_FROM?: string;
   EMAIL_OWNER_TO?: string;
   PUBLIC_SITE_URL?: string;
@@ -18,12 +20,13 @@ export async function sendEmail(
   env: EmailEnv
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const apiKey = env.RESEND_API_KEY;
-  const from = env.EMAIL_FROM;
+  const from = env.RESEND_FROM_EMAIL || env.EMAIL_FROM;
+  const replyTo = env.RESEND_REPLY_TO || args.replyTo;
 
   if (!apiKey || !from) {
     return {
       ok: false,
-      error: 'Missing RESEND_API_KEY or EMAIL_FROM',
+      error: 'Missing RESEND_API_KEY or sender email',
     };
   }
 
@@ -47,7 +50,7 @@ export async function sendEmail(
         subject: args.subject,
         html: args.html,
         text: args.text,
-        reply_to: args.replyTo,
+        reply_to: replyTo,
       }),
     });
 
@@ -64,4 +67,3 @@ export async function sendEmail(
     return { ok: false, error: err?.message || 'Unknown email error' };
   }
 }
-

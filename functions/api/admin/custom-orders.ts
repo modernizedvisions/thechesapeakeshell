@@ -133,6 +133,8 @@ async function ensureCustomOrdersSchema(db: D1Database) {
     message_id TEXT,
     status TEXT DEFAULT 'pending',
     payment_link TEXT,
+    stripe_session_id TEXT,
+    stripe_payment_intent_id TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );`).run();
 
@@ -142,9 +144,15 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   );`).run();
 
   const columns = await db.prepare(`PRAGMA table_info(custom_orders);`).all<{ name: string }>();
-  const hasDisplayId = (columns.results || []).some((col) => col.name === 'display_custom_order_id');
-  if (!hasDisplayId) {
+  const names = (columns.results || []).map((col) => col.name);
+  if (!names.includes('display_custom_order_id')) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN display_custom_order_id TEXT;`).run();
+  }
+  if (!names.includes('stripe_session_id')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_session_id TEXT;`).run();
+  }
+  if (!names.includes('stripe_payment_intent_id')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_payment_intent_id TEXT;`).run();
   }
 
   await db.prepare(

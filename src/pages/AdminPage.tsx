@@ -26,6 +26,7 @@ import {
   getAdminCustomOrders,
   createAdminCustomOrder,
   updateAdminCustomOrder,
+  sendAdminCustomOrderPaymentLink,
 } from '../lib/db/customOrders';
 import type { AdminCustomOrder } from '../lib/db/customOrders';
 
@@ -746,6 +747,19 @@ export function AdminPage() {
               } catch (err) {
                 console.error('Failed to mark custom order paid', err);
                 setCustomOrdersError(err instanceof Error ? err.message : 'Failed to mark custom order paid');
+              } finally {
+                setIsLoadingCustomOrders(false);
+              }
+            }}
+            onSendPaymentLink={async (orderId: string) => {
+              try {
+                setCustomOrdersError(null);
+                setIsLoadingCustomOrders(true);
+                await sendAdminCustomOrderPaymentLink(orderId);
+                await loadCustomOrders();
+              } catch (err) {
+                console.error('Failed to send payment link', err);
+                setCustomOrdersError(err instanceof Error ? err.message : 'Failed to send payment link');
               } finally {
                 setIsLoadingCustomOrders(false);
               }
