@@ -174,20 +174,22 @@ export function AdminPage() {
   const loadAdminData = async () => {
     setIsLoadingOrders(true);
     const [ordersData, soldData, galleryData, heroData] = await Promise.all([
-      fetchOrders().then((data) => {
-        setOrdersError(null);
-        return data;
-      }).catch((err) => {
-        console.error('Failed to load admin orders', err);
-        setOrdersError(err instanceof Error ? err.message : 'Failed to load orders');
-        return [];
-      }),
+      fetchOrders()
+        .then((data) => {
+          setOrdersError(null);
+          return data;
+        })
+        .catch((err) => {
+          console.error('Failed to load admin orders', err);
+          setOrdersError(err instanceof Error ? err.message : 'Failed to load orders');
+          return [];
+        })
+        .finally(() => setIsLoadingOrders(false)),
       fetchSoldProducts(),
       fetchGalleryImages(),
       fetchHomeHeroConfig(),
     ]);
     setOrders(ordersData);
-    setIsLoadingOrders(false);
     setSoldProducts(soldData);
     setGalleryImages(galleryData);
     setHeroConfig({
