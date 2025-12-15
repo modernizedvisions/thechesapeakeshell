@@ -25,7 +25,6 @@ import { OrderDetailsModal } from '../components/admin/OrderDetailsModal';
 import {
   getAdminCustomOrders,
   createAdminCustomOrder,
-  updateAdminCustomOrder,
   sendAdminCustomOrderPaymentLink,
 } from '../lib/db/customOrders';
 import type { AdminCustomOrder } from '../lib/db/customOrders';
@@ -738,19 +737,6 @@ export function AdminPage() {
             isLoading={isLoadingCustomOrders}
             error={customOrdersError}
             onReloadOrders={loadCustomOrders}
-            onMarkPaid={async (orderId: string) => {
-              try {
-                setCustomOrdersError(null);
-                setIsLoadingCustomOrders(true);
-                await updateAdminCustomOrder(orderId, { status: 'paid' });
-                await loadCustomOrders();
-              } catch (err) {
-                console.error('Failed to mark custom order paid', err);
-                setCustomOrdersError(err instanceof Error ? err.message : 'Failed to mark custom order paid');
-              } finally {
-                setIsLoadingCustomOrders(false);
-              }
-            }}
             onSendPaymentLink={async (orderId: string) => {
               try {
                 setCustomOrdersError(null);

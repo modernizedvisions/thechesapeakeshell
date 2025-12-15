@@ -6,7 +6,6 @@ import { AdminSectionHeader } from './AdminSectionHeader';
 interface AdminCustomOrdersTabProps {
   allCustomOrders: any[];
   onCreateOrder: (data: any) => Promise<void> | void;
-  onMarkPaid?: (id: string) => Promise<void> | void;
   onReloadOrders?: () => Promise<void> | void;
   onSendPaymentLink?: (id: string) => Promise<void> | void;
   initialDraft?: any;
@@ -18,7 +17,6 @@ interface AdminCustomOrdersTabProps {
 export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
   allCustomOrders,
   onCreateOrder,
-  onMarkPaid,
   onReloadOrders,
   onSendPaymentLink,
   initialDraft,
@@ -27,6 +25,8 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
   error,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const draftDefaults = useMemo(() => {
     if (!initialDraft) return undefined;
     return {
@@ -68,6 +68,16 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
   if (import.meta.env.DEV) {
     console.debug('[custom orders tab] render', { count: allCustomOrders.length });
   }
+
+  const openView = (order: any) => {
+    setSelectedOrder(order);
+    setIsViewOpen(true);
+  };
+
+  const closeView = () => {
+    setIsViewOpen(false);
+    setSelectedOrder(null);
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
@@ -157,17 +167,9 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
                         <button
                           type="button"
                           className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:border-gray-400"
+                          onClick={() => openView(order)}
                         >
                           View
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:border-gray-400"
-                          disabled={statusLabel === 'paid'}
-                          title={statusLabel === 'paid' ? 'Already paid' : ''}
-                          onClick={() => onMarkPaid?.(order.id)}
-                        >
-                          Mark Paid
                         </button>
                         <button
                           type="button"
@@ -187,6 +189,72 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
           </div>
         )}
       </div>
+
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedOrder ? `Custom Order ${selectedOrder.displayCustomOrderId || selectedOrder.display_custom_order_id || selectedOrder.id}` : 'Custom Order'}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Customer Name</p>
+                  <p className="font-medium text-gray-900">{selectedOrder.customerName || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Customer Email</p>
+                  <p className="font-medium text-gray-900">{selectedOrder.customerEmail || '—'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Amount</p>
+                  <p className="font-medium text-gray-900">
+                    {typeof selectedOrder.amount === 'number' ? `$${(selectedOrder.amount / 100).toFixed(2)}` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
+                  <p className="font-medium text-gray-900 capitalize">{selectedOrder.status || 'pending'}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Payment Link</p>
+                {selectedOrder.paymentLink ? (
+                  <a
+                    href={selectedOrder.paymentLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 hover:underline break-words"
+                  >
+                    {selectedOrder.paymentLink}
+                  </a>
+                ) : (
+                  <p className="text-gray-900 font-medium">—</p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Message / Description</p>
+                <div className="mt-1 max-h-48 overflow-auto rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-900">
+                  {selectedOrder.description || '—'}
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={closeView}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:border-gray-400"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent>
