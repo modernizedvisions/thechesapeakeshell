@@ -129,6 +129,7 @@ export interface AdminShopTabProps {
   editProductId: string | null;
   editProductForm: ProductFormState | null;
   productSaveState: 'idle' | 'saving' | 'success' | 'error';
+  editProductSaveState: 'idle' | 'saving' | 'success' | 'error';
   isLoadingProducts: boolean;
   productImageFileInputRef: React.RefObject<HTMLInputElement>;
   editProductImageFileInputRef: React.RefObject<HTMLInputElement>;
@@ -143,7 +144,7 @@ export interface AdminShopTabProps {
   onMoveEditImage: (id: string, direction: 'up' | 'down') => void;
   onRemoveEditImage: (id: string) => void;
   onEditFormChange: (field: keyof ProductFormState, value: string | number | boolean) => void;
-  onUpdateProduct: (e: React.FormEvent) => void | Promise<void>;
+  onUpdateProduct: (e: React.FormEvent) => Promise<boolean | void>;
   onCancelEditProduct: () => void;
   onStartEditProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void | Promise<void>;
@@ -158,6 +159,8 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
   editProductId,
   editProductForm,
   productSaveState,
+  editProductSaveState,
+  editProductSaveState,
   isLoadingProducts,
   productImageFileInputRef,
   editProductImageFileInputRef,
@@ -620,10 +623,12 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
           </DialogHeader>
 
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              onUpdateProduct(e);
-              setIsEditModalOpen(false);
+              const ok = await onUpdateProduct(e);
+              if (ok) {
+                setIsEditModalOpen(false);
+              }
             }}
             className="space-y-4"
           >
@@ -789,9 +794,10 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
               </button>
               <button
                 type="submit"
-                className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                disabled={editProductSaveState === 'saving'}
+                className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
               >
-                Save
+                {editProductSaveState === 'saving' ? 'Saving...' : 'Save'}
               </button>
             </div>
           </form>

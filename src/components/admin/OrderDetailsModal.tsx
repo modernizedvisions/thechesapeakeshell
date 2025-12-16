@@ -23,7 +23,7 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
   const shipping = order.shippingAddress;
   const hasShipping = !!shipping;
 
-  const items = Array.isArray(order.items) && order.items.length
+  const rawItems = Array.isArray(order.items) && order.items.length
     ? order.items
     : [{
         productId: 'item',
@@ -32,9 +32,22 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
         priceCents: order.totalCents || 0,
       }];
 
+  const isShippingItem = (item: any) => {
+    const name = (item.productName || '').toLowerCase();
+    const pid = (item.productId || '').toLowerCase();
+    return name.includes('shipping') || pid === 'shipping' || pid === 'ship' || pid === 'shipping_line';
+  };
+
+  const shippingFromItems = rawItems
+    .filter(isShippingItem)
+    .reduce((sum, item) => sum + (item.priceCents || 0) * (item.quantity || 1), 0);
+
+  const items = rawItems.filter((i) => !isShippingItem(i));
+
   const lineTotal = (qty: number, priceCents: number) => formatCurrency((qty || 0) * (priceCents || 0));
-  const shippingCents = order.shippingCents ?? 0;
-  const subtotalCents = Math.max((order.totalCents ?? 0) - shippingCents, 0);
+  const shippingCents = order.shippingCents ?? shippingFromItems ?? 0;
+  const subtotalCents = items.reduce((sum, item) => sum + (item.priceCents || 0) * (item.quantity || 1), 0);
+  const totalCents = order.totalCents ?? subtotalCents + shippingCents;
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-3 py-6">
@@ -143,7 +156,7 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
                 </div>
                 <div className="flex items-center justify-between pt-1 border-t border-slate-200">
                   <span className="font-semibold text-slate-900">Total</span>
-                  <span className="font-semibold text-slate-900">{formatCurrency(order.totalCents)}</span>
+                  <span className="font-semibold text-slate-900">{formatCurrency(totalCents)}</span>
                 </div>
               </div>
             </section>
@@ -153,3 +166,5 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
     </div>
   );
 }
+
+

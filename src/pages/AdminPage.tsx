@@ -88,6 +88,7 @@ export function AdminPage() {
   const [gallerySaveState, setGallerySaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [homeSaveState, setHomeSaveState] = useState<'idle' | 'saving' | 'success'>('idle');
   const [productSaveState, setProductSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [editProductSaveState, setEditProductSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [productStatus, setProductStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [productForm, setProductForm] = useState<ProductFormState>(initialProductForm);
   const [editProductId, setEditProductId] = useState<string | null>(null);
@@ -483,10 +484,10 @@ export function AdminPage() {
     }
   };
 
-  const handleUpdateProduct = async (e: React.FormEvent) => {
+  const handleUpdateProduct = async (e: React.FormEvent): Promise<boolean> => {
     e.preventDefault();
-    if (!editProductId || !editProductForm) return;
-    setProductSaveState('saving');
+    if (!editProductId || !editProductForm) return false;
+    setEditProductSaveState('saving');
     setProductMessage('');
 
     try {
@@ -507,16 +508,19 @@ export function AdminPage() {
         setEditProductForm(null);
         setEditProductImages([]);
         await loadAdminProducts();
-        setProductSaveState('success');
-        setTimeout(() => setProductSaveState('idle'), 1500);
+        setEditProductSaveState('success');
+        setTimeout(() => setEditProductSaveState('idle'), 1500);
+        return true;
       } else {
-        setProductSaveState('error');
+        setEditProductSaveState('error');
+        return false;
       }
     } catch (err) {
       console.error('Update product failed', err);
       setProductStatus({ type: 'error', message: 'Update failed. Please try again.' });
-      setProductSaveState('error');
-      setTimeout(() => setProductSaveState('idle'), 1500);
+      setEditProductSaveState('error');
+      setTimeout(() => setEditProductSaveState('idle'), 1500);
+      return false;
     }
   };
 
@@ -679,6 +683,7 @@ export function AdminPage() {
             editProductId={editProductId}
             editProductForm={editProductForm}
             productSaveState={productSaveState}
+            editProductSaveState={editProductSaveState}
             isLoadingProducts={isLoadingProducts}
             productImageFileInputRef={productImageFileInputRef}
             editProductImageFileInputRef={editProductImageFileInputRef}

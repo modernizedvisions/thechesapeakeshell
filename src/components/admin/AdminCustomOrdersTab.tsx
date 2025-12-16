@@ -221,6 +221,14 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
                   <p className="font-medium text-gray-900 capitalize">{selectedOrder.status || 'pending'}</p>
                 </div>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Created At</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString() : '—'}
+                  </p>
+                </div>
+              </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wide">Payment Link</p>
                 {selectedOrder.paymentLink ? (

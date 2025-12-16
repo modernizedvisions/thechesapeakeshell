@@ -43,6 +43,30 @@ const orderCategorySummaries = (items: Category[]): Category[] => {
   return [...ordered, ...remaining];
 };
 
+const ensureCategoryDefaults = (category: Category): Category => ({
+  ...category,
+  name: category.name || category.slug,
+  slug: category.slug || toSlug(category.name || ''),
+  showOnHomePage: category.showOnHomePage ?? true,
+});
+
+const mergeCategories = (apiCategories: Category[], derivedCategories: Category[]): Category[] => {
+  const merged = new Map<string, Category>();
+  const upsert = (category: Category, preferOverride = false) => {
+    const normalizedKey = toSlug(category.slug || category.name || '');
+    if (!normalizedKey) return;
+    const next = ensureCategoryDefaults(category);
+    if (preferOverride || !merged.has(normalizedKey)) {
+      merged.set(normalizedKey, next);
+    }
+  };
+
+  derivedCategories.forEach((category) => upsert(category, false));
+  apiCategories.forEach((category) => upsert(category, true));
+
+  return Array.from(merged.values());
+};
+
 const deriveCategoriesFromProducts = (items: Product[]): Category[] => {
   const names = new Map<string, string>();
   const addName = (name?: string | null) => {
@@ -92,29 +116,76 @@ const getProductCategoryNames = (product: Product): string[] => {
   return Array.from(names);
 };
 
+const buildCategoryLookups = (categoryList: Category[]) => {
+  const slugLookup = new Map<string, string>();
+  const nameLookup = new Map<string, string>();
+  categoryList.forEach((cat) => {
+    const normalizedSlug = toSlug(cat.slug);
+    const normalizedName = toSlug(cat.name);
+    if (normalizedSlug) slugLookup.set(normalizedSlug, cat.slug);
+    if (normalizedName) nameLookup.set(normalizedName, cat.slug);
+  });
+  return { slugLookup, nameLookup };
+};
+
 const resolveCategorySlugForProduct = (
   product: Product,
   categoryList: Category[],
+  lookups: { slugLookup: Map<string, string>; nameLookup: Map<string, string> },
   fallbackSlug?: string
-): string | null => {
-  const lookup = new Map(categoryList.map((c) => [toSlug(c.slug), c.slug]));
+): {
+  slug: string | null;
+  matchedBy: 'slug' | 'name' | 'fallback' | 'none';
+  candidateNames: string[];
+  normalizedCandidates: string[];
+} => {
   const candidateNames = getProductCategoryNames(product);
+  const normalizedCandidates = candidateNames.map((name) => toSlug(name)).filter(Boolean);
+  const candidateSet = new Set(normalizedCandidates);
 
-  for (const name of candidateNames) {
-    const normalized = toSlug(name);
-    const match = lookup.get(normalized);
-    if (match) return match;
+  for (const category of categoryList) {
+    const normalizedSlug = toSlug(category.slug);
+    const normalizedName = toSlug(category.name);
+    if (normalizedSlug && candidateSet.has(normalizedSlug)) {
+      return { slug: category.slug, matchedBy: 'slug', candidateNames, normalizedCandidates };
+    }
+    if (normalizedName && candidateSet.has(normalizedName)) {
+      return { slug: category.slug, matchedBy: 'name', candidateNames, normalizedCandidates };
+    }
   }
 
-  if (fallbackSlug) return fallbackSlug;
-  if (candidateNames.length) return toSlug(candidateNames[0]);
-  return null;
+  for (const normalized of normalizedCandidates) {
+    if (lookups.slugLookup.has(normalized)) {
+      return {
+        slug: lookups.slugLookup.get(normalized)!,
+        matchedBy: 'slug',
+        candidateNames,
+        normalizedCandidates,
+      };
+    }
+    if (lookups.nameLookup.has(normalized)) {
+      return {
+        slug: lookups.nameLookup.get(normalized)!,
+        matchedBy: 'name',
+        candidateNames,
+        normalizedCandidates,
+      };
+    }
+  }
+
+  if (fallbackSlug) return { slug: fallbackSlug, matchedBy: 'fallback', candidateNames, normalizedCandidates };
+
+  return { slug: null, matchedBy: 'none', candidateNames, normalizedCandidates };
 };
 
 const CATEGORY_COPY: Record<string, { title: string; description: string }> = {
   ornaments: {
     title: 'ORNAMENTS',
     description: 'Hand-crafted coastal keepsakes for every season.',
+  },
+  'ring-dish': {
+    title: 'RING DISHES',
+    description: 'Functional coastal art designed for your jewelry & keepsakes.',
   },
   'ring dishes': {
     title: 'RING DISHES',
@@ -123,6 +194,10 @@ const CATEGORY_COPY: Record<string, { title: string; description: string }> = {
   decor: {
     title: 'DECOR',
     description: 'Coastal artistry to brighten your space with shoreline charm.',
+  },
+  'wine-stopper': {
+    title: 'WINE STOPPERS',
+    description: 'Hand-crafted shell stoppers for your favorite bottles.',
   },
   'wine stoppers': {
     title: 'WINE STOPPERS',
@@ -169,6 +244,16 @@ export function ShopPage() {
     try {
       const allProducts = await fetchProducts({ visible: true });
       const availableProducts = (allProducts || []).filter((p) => !p.isSold);
+      console.log(
+        '[ShopPage] product sample (first 3)',
+        availableProducts.slice(0, 3).map((p) => ({
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          category: (p as any).category ?? null,
+          categories: Array.isArray((p as any).categories) ? (p as any).categories : null,
+        }))
+      );
       setProducts(availableProducts);
 
       let apiCategories: Category[] = [];
@@ -179,9 +264,12 @@ export function ShopPage() {
       }
 
       const derivedCategories = deriveCategoriesFromProducts(availableProducts);
-      const orderedCategories = apiCategories.length
-        ? orderCategorySummaries(apiCategories)
-        : derivedCategories;
+      const mergedCategories = mergeCategories(apiCategories, derivedCategories);
+      const orderedCategories = orderCategorySummaries(mergedCategories);
+      console.log(
+        '[ShopPage] merged category list',
+        orderedCategories.map((c) => ({ slug: c.slug, name: c.name }))
+      );
       setCategories(orderedCategories);
     } catch (error) {
       console.error('Error loading products:', error);
@@ -199,10 +287,22 @@ export function ShopPage() {
     });
 
     const fallbackSlug = categoryList[0]?.slug;
+    const lookups = buildCategoryLookups(categoryList);
 
     products.forEach((product) => {
-      const slug = resolveCategorySlugForProduct(product, categoryList, fallbackSlug);
-      const key = slug || fallbackSlug;
+      const resolution = resolveCategorySlugForProduct(product, categoryList, lookups, fallbackSlug);
+      const key = resolution.slug || fallbackSlug;
+      if (resolution.matchedBy === 'fallback' || !resolution.slug) {
+        console.log('[ShopPage][category-fallback]', {
+          productId: product.id,
+          productName: product.name,
+          candidateNames: resolution.candidateNames,
+          normalizedCandidates: resolution.normalizedCandidates,
+          fallbackSlug,
+          resolvedSlug: resolution.slug,
+          matchedBy: resolution.matchedBy,
+        });
+      }
       if (!key) return;
       if (!groups[key]) groups[key] = [];
       groups[key].push(product);
@@ -219,6 +319,14 @@ export function ShopPage() {
     if (!active) return categoryList;
     return [active, ...categoryList.filter((c) => c.slug !== active.slug)];
   }, [activeCategorySlug, categoryList]);
+
+  useEffect(() => {
+    if (!categoryList.length) return;
+    console.log(
+      '[ShopPage] categoryList effect',
+      categoryList.map((c) => ({ slug: c.slug, name: c.name }))
+    );
+  }, [categoryList]);
 
   return (
     <div className="py-12 bg-gray-50 min-h-screen">
