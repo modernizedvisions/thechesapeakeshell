@@ -13,3 +13,25 @@
     @apply font-serif;
   }
 }
+
+@layer utilities {
+  /* Landscape phones/tablets under desktop breakpoint: force 4 columns for the home category grid */
+  .mobile-landscape\:grid-cols-4 {
+    @media (orientation: landscape) and (max-width: 1023px) {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+  }
+  /* Landscape phones/tablets under desktop breakpoint: force 4 columns for product grid */
+  .landscape\:grid-cols-4 {
+    @media (orientation: landscape) and (max-width: 1023px) {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+  }
+  /* Landscape phones/tablets under desktop breakpoint: force 4 columns for gallery grids */
+  .gallery-grid.landscape\:grid-cols-4,
+  .sold-grid.landscape\:grid-cols-4 {
+    @media (orientation: landscape) and (max-width: 1023px) {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+  }
+}

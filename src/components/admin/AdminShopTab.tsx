@@ -160,7 +160,6 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
   editProductForm,
   productSaveState,
   editProductSaveState,
-  editProductSaveState,
   isLoadingProducts,
   productImageFileInputRef,
   editProductImageFileInputRef,

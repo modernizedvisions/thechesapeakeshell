@@ -276,7 +276,7 @@ export function HomePage() {
             </div>
           ) : featuredCards.length ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 mobile-landscape:grid-cols-4 sm:grid-cols-3 xl:grid-cols-4 gap-6">
                 {featuredCards.map(({ category, tile, slot }) => {
                   const image =
                     category.heroImageUrl ||

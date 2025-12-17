@@ -53,7 +53,12 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <div className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-      <div className="aspect-square overflow-hidden bg-gray-100">
+      <div className="relative aspect-square overflow-hidden bg-gray-100">
+        {product.oneoff && inCart && (
+          <span className="absolute top-3 right-3 z-10 rounded-full bg-white/90 text-slate-900 border border-slate-200 px-2.5 py-1 text-xs font-medium shadow-sm backdrop-blur">
+            In Your Cart
+          </span>
+        )}
         {product.imageUrl || product.imageUrls?.[0] ? (
           <img
             src={product.imageUrl || product.imageUrls?.[0]}
@@ -71,14 +76,6 @@ export function ProductCard({ product }: ProductCardProps) {
           <h3 className="text-sm font-medium text-slate-900 truncate">{product.name}</h3>
           <span className="text-sm font-semibold text-slate-900 whitespace-nowrap">{priceLabel}</span>
         </div>
-
-        {product.oneoff && inCart && (
-          <div className="mb-2">
-            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700 border border-gray-200">
-              In Your Cart
-            </span>
-          </div>
-        )}
 
         {isSold && (
           <div className="mb-2">
