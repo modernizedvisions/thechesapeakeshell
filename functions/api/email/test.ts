@@ -1,13 +1,29 @@
 import { sendEmail } from '../../_lib/email';
 import type { EmailEnv } from '../../_lib/email';
 
-export async function onRequestGet(context: { request: Request; env: EmailEnv }): Promise<Response> {
+type TestBody = {
+  to?: string;
+};
+
+const TEST_SUBJECT = 'New Inquiry – The Chesapeake Shell (Test)';
+const TEST_TEXT = 'This is a test email from The Chesapeake Shell.';
+const TEST_HTML = `<div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">This is a test email from The Chesapeake Shell.</div>`;
+const TEST_ATTACHMENT = {
+  filename: 'pixel.png',
+  content:
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2N3JkAAAAASUVORK5CYII=',
+  contentType: 'image/png',
+};
+
+// TODO: Add auth before enabling this endpoint in production.
+export async function onRequestPost(context: { request: Request; env: EmailEnv }): Promise<Response> {
   const { request, env } = context;
-  const url = new URL(request.url);
-  const to = url.searchParams.get('to');
+  const body = (await request.json().catch(() => null)) as TestBody | null;
+  const ownerTo = env.RESEND_OWNER_TO || env.EMAIL_OWNER_TO || null;
+  const to = body?.to?.trim() || ownerTo || '';
 
   if (!to) {
-    return json({ error: 'Missing to param' }, 400);
+    return json({ error: 'Missing to' }, 400);
   }
 
   const hasKey = !!env.RESEND_API_KEY;
@@ -25,9 +41,10 @@ export async function onRequestGet(context: { request: Request; env: EmailEnv })
   const result = await sendEmail(
     {
       to,
-      subject: 'Test email from The Chesapeake Shell',
-      text: 'This is a test email sent via Resend.',
-      html: `<div style="font-family: Inter, Arial, sans-serif; color: #0f172a; line-height: 1.5;">This is a test email sent via Resend.</div>`,
+      subject: TEST_SUBJECT,
+      text: TEST_TEXT,
+      html: TEST_HTML,
+      attachments: [TEST_ATTACHMENT],
     },
     env
   );

@@ -4,6 +4,7 @@ export type SendEmailArgs = {
   html?: string;
   text?: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type EmailEnv = {
@@ -18,6 +19,12 @@ export type EmailEnv = {
   VITE_PUBLIC_SITE_URL?: string;
 };
 
+export type EmailAttachment = {
+  filename: string;
+  content: string;
+  contentType?: string;
+};
+
 export async function sendEmail(
   args: SendEmailArgs,
   env: EmailEnv
@@ -25,6 +32,7 @@ export async function sendEmail(
   const apiKey = env.RESEND_API_KEY;
   const from = env.RESEND_FROM_EMAIL || env.EMAIL_FROM || 'onboarding@resend.dev';
   const replyTo = env.RESEND_REPLY_TO || env.RESEND_REPLY_TO_EMAIL || args.replyTo;
+  const hasAttachment = !!(args.attachments && args.attachments.length);
 
   if (!apiKey || !from) {
     return {
@@ -41,6 +49,13 @@ export async function sendEmail(
   }
 
   try {
+    console.log('[email] sendEmail: start', {
+      to: args.to,
+      from,
+      subject: args.subject,
+      hasAttachment,
+    });
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -54,6 +69,11 @@ export async function sendEmail(
         html: args.html,
         text: args.text,
         reply_to: replyTo,
+        attachments: args.attachments?.map((attachment) => ({
+          filename: attachment.filename,
+          content: attachment.content,
+          content_type: attachment.contentType,
+        })),
       }),
     });
 
