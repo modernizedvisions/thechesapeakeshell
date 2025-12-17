@@ -583,8 +583,8 @@ export function AdminPage() {
 
   return (
     <>
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-12 overflow-x-hidden">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
           <button
@@ -596,7 +596,7 @@ export function AdminPage() {
         </div>
 
         <div className="mb-6 border-b border-gray-200">
-          <nav className="flex gap-4 justify-center">
+          <nav className="flex gap-4 justify-start md:justify-center overflow-x-auto whitespace-nowrap -mx-4 px-4 md:mx-0 md:px-0">
             <button
               onClick={() => setActiveTab('orders')}
               className={`px-4 py-2 font-medium border-b-2 transition-colors ${

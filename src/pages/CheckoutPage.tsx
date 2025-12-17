@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { loadStripe, type EmbeddedCheckout } from '@stripe/stripe-js';
 import { BannerMessage } from '../components/BannerMessage';
@@ -6,6 +6,24 @@ import { createEmbeddedCheckoutSession, fetchProductById } from '../lib/api';
 import type { Product } from '../lib/types';
 import { useCartStore } from '../store/cartStore';
 import { calculateShippingCents } from '../lib/shipping';
+
+const SESSION_MAX_AGE_MS = 10 * 60 * 1000;
+const sessionTimestampKey = (sessionId: string) => `checkout_session_created_at_${sessionId}`;
+
+const isExpiredSessionError = (error: unknown) => {
+  const code = (error as any)?.code || (error as any)?.type;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+      ? error
+      : typeof code === 'string'
+      ? code
+      : '';
+  if (typeof code === 'string' && code.toLowerCase().includes('expired')) return true;
+  if (message && /expired/i.test(message)) return true;
+  return false;
+};
 
 export function CheckoutPage() {
   const navigate = useNavigate();
@@ -16,6 +34,7 @@ export function CheckoutPage() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMountingStripe, setIsMountingStripe] = useState(false);
@@ -24,6 +43,55 @@ export function CheckoutPage() {
   const productIdFromUrl = searchParams.get('productId');
   const fallbackCartProduct = cartItems[0]?.productId;
   const targetProductId = useMemo(() => productIdFromUrl || fallbackCartProduct || null, [productIdFromUrl, fallbackCartProduct]);
+
+  const clearSessionTimestamp = useCallback((id: string | null) => {
+    if (!id || typeof window === 'undefined') return;
+    try {
+      window.localStorage.removeItem(sessionTimestampKey(id));
+    } catch (storageError) {
+      console.warn('checkout: failed to clear session timestamp', storageError);
+    }
+  }, []);
+
+  const recordSessionTimestamp = useCallback((id: string) => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(sessionTimestampKey(id), String(Date.now()));
+    } catch (storageError) {
+      console.warn('checkout: failed to store session timestamp', storageError);
+    }
+  }, []);
+
+  const hasSessionExpired = useCallback(
+    (id: string) => {
+      if (typeof window === 'undefined') return false;
+      try {
+        const stored = window.localStorage.getItem(sessionTimestampKey(id));
+        if (!stored) return false;
+        const createdAt = Number(stored);
+        if (!createdAt) return false;
+        return Date.now() - createdAt > SESSION_MAX_AGE_MS;
+      } catch (storageError) {
+        console.warn('checkout: failed to read session timestamp', storageError);
+        return false;
+      }
+    },
+    []
+  );
+
+  const handleStaleSession = useCallback(
+    (reason: string) => {
+      console.warn('checkout: session expired; redirecting', { reason, sessionId });
+      if (sessionId) {
+        clearSessionTimestamp(sessionId);
+      }
+      setClientSecret(null);
+      setSessionId(null);
+      setError('Your checkout session expired. Please start again.');
+      navigate('/shop', { replace: true });
+    },
+    [clearSessionTimestamp, navigate, sessionId]
+  );
 
   useEffect(() => {
     let isCancelled = false;
@@ -79,6 +147,8 @@ export function CheckoutPage() {
         console.log('checkout: session response', session);
         if (isCancelled) return;
         setClientSecret(session.clientSecret);
+        setSessionId(session.sessionId);
+        recordSessionTimestamp(session.sessionId);
       } catch (err) {
         if (isCancelled) return;
         const message = err instanceof Error ? err.message : 'Unable to start checkout.';
@@ -92,7 +162,7 @@ export function CheckoutPage() {
     return () => {
       isCancelled = true;
     };
-  }, [targetProductId]);
+  }, [cartItems, publishableKey, recordSessionTimestamp, targetProductId]);
 
   useEffect(() => {
     if (!clientSecret) return;
@@ -114,6 +184,10 @@ export function CheckoutPage() {
       } catch (err) {
         if (isCancelled) return;
         const message = err instanceof Error ? err.message : 'Unable to load checkout.';
+        if (isExpiredSessionError(err)) {
+          handleStaleSession('stripe-reported-expired');
+          return;
+        }
         setError(message);
       } finally {
         if (!isCancelled) setIsMountingStripe(false);
@@ -125,7 +199,21 @@ export function CheckoutPage() {
       isCancelled = true;
       checkout?.destroy();
     };
-  }, [clientSecret]);
+  }, [clientSecret, handleStaleSession, publishableKey]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const checkExpiry = () => {
+      if (hasSessionExpired(sessionId)) {
+        handleStaleSession('age-limit');
+      }
+    };
+
+    checkExpiry();
+    const intervalId = window.setInterval(checkExpiry, 15000);
+    return () => window.clearInterval(intervalId);
+  }, [sessionId, hasSessionExpired, handleStaleSession]);
 
   const previewItems = useMemo(() => {
     if (cartItems.length) {

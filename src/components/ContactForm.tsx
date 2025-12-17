@@ -110,11 +110,12 @@ export function ContactForm() {
 
   return (
     <div className="py-12" id="contact" style={{ backgroundColor: 'var(--follow-bg, #f1f5f9)' }}>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
-          Get In Touch
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-4xl mx-auto rounded-2xl border border-slate-200 shadow-lg bg-white overflow-hidden p-4 sm:p-6 md:p-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+            Get In Touch
+          </h2>
+          <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
               Name
@@ -210,7 +211,8 @@ export function ContactForm() {
           >
             {isSubmitting ? 'Sending...' : 'Send Message'}
           </button>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

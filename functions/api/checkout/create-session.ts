@@ -156,6 +156,8 @@ export const onRequestPost = async (context: {
     }
 
     const shippingCents = calculateShippingCents(subtotalCents);
+    const expiresAt = Math.floor(Date.now() / 1000) + 600; // 10 minutes from now
+    console.log('Creating embedded checkout session with expires_at', expiresAt);
 
     try {
       const session = await stripe.checkout.sessions.create({
@@ -180,6 +182,7 @@ export const onRequestPost = async (context: {
         shipping_address_collection: {
           allowed_countries: ['US', 'CA'],
         },
+        expires_at: expiresAt,
       });
 
       if (!session.client_secret) {

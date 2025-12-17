@@ -71,7 +71,7 @@ export function SiteLayout() {
                 <Link
                   key={link.to}
                   to={link.to}
-                  className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  className="text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors uppercase tracking-[0.12em]"
                 >
                   {link.label}
                 </Link>
@@ -93,7 +93,7 @@ export function SiteLayout() {
           />
           <div className="fixed left-0 top-0 h-full w-full max-w-xs bg-white shadow-xl z-50 flex flex-col">
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+              <h2 className="text-lg font-semibold text-gray-900 uppercase tracking-[0.08em]">Menu</h2>
               <button
                 type="button"
                 className="p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -109,7 +109,7 @@ export function SiteLayout() {
                   key={link.to}
                   to={link.to}
                   onClick={() => setNavDrawerOpen(false)}
-                  className="block rounded-lg px-3 py-2 text-base font-medium text-gray-800 hover:bg-gray-100 transition-colors"
+                  className="block rounded-lg px-3 py-2 text-base font-semibold text-gray-800 hover:bg-gray-100 transition-colors uppercase tracking-[0.1em]"
                 >
                   {link.label}
                 </Link>

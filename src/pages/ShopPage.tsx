@@ -11,6 +11,13 @@ const BASE_CATEGORY_ORDER: Category[] = [
   { id: 'wine-stopper', name: 'Wine Stoppers', slug: 'wine-stopper', showOnHomePage: true },
 ];
 
+const UNCATEGORIZED_CATEGORY: Category = {
+  id: 'uncategorized',
+  name: 'Other Items',
+  slug: 'uncategorized',
+  showOnHomePage: true,
+};
+
 const toSlug = (value: string) =>
   value
     .toLowerCase()
@@ -65,6 +72,18 @@ const mergeCategories = (apiCategories: Category[], derivedCategories: Category[
   apiCategories.forEach((category) => upsert(category, true));
 
   return Array.from(merged.values());
+};
+
+const dedupeCategories = (categories: Category[]): Category[] => {
+  const seen = new Set<string>();
+  const result: Category[] = [];
+  categories.forEach((category) => {
+    const key = toSlug(category.slug || category.name || '');
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    result.push(ensureCategoryDefaults(category));
+  });
+  return result;
 };
 
 const deriveCategoriesFromProducts = (items: Product[]): Category[] => {
@@ -126,6 +145,20 @@ const buildCategoryLookups = (categoryList: Category[]) => {
     if (normalizedName) nameLookup.set(normalizedName, cat.slug);
   });
   return { slugLookup, nameLookup };
+};
+
+const ensureUncategorizedCategory = (categories: Category[], products: Product[]): Category[] => {
+  const normalizedUncategorized = toSlug(UNCATEGORIZED_CATEGORY.slug);
+  const hasUncategorized = categories.some((cat) => toSlug(cat.slug) === normalizedUncategorized);
+  const lookups = buildCategoryLookups(categories);
+  const needsFallback = products.some((product) => {
+    const resolution = resolveCategorySlugForProduct(product, categories, lookups);
+    return !resolution.slug;
+  });
+
+  if (hasUncategorized || !needsFallback) return categories;
+
+  return [...categories, UNCATEGORIZED_CATEGORY];
 };
 
 const resolveCategorySlugForProduct = (
@@ -203,6 +236,10 @@ const CATEGORY_COPY: Record<string, { title: string; description: string }> = {
     title: 'WINE STOPPERS',
     description: 'Hand-crafted shell stoppers for your favorite bottles.',
   },
+  uncategorized: {
+    title: 'OTHER ITEMS',
+    description: '',
+  },
 };
 
 export function ShopPage() {
@@ -212,10 +249,12 @@ export function ShopPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const categoryList = useMemo(
-    () => (categories.length ? categories : deriveCategoriesFromProducts(products)),
-    [categories, products]
-  );
+  const categoryList = useMemo(() => {
+    const baseList = categories.length ? categories : deriveCategoriesFromProducts(products);
+    const deduped = dedupeCategories(baseList);
+    const withFallback = ensureUncategorizedCategory(deduped, products);
+    return orderCategorySummaries(dedupeCategories(withFallback));
+  }, [categories, products]);
 
   useEffect(() => {
     loadProducts();
@@ -265,7 +304,7 @@ export function ShopPage() {
 
       const derivedCategories = deriveCategoriesFromProducts(availableProducts);
       const mergedCategories = mergeCategories(apiCategories, derivedCategories);
-      const orderedCategories = orderCategorySummaries(mergedCategories);
+      const orderedCategories = orderCategorySummaries(dedupeCategories(mergedCategories));
       console.log(
         '[ShopPage] merged category list',
         orderedCategories.map((c) => ({ slug: c.slug, name: c.name }))
@@ -286,7 +325,7 @@ export function ShopPage() {
       groups[c.slug] = [];
     });
 
-    const fallbackSlug = categoryList[0]?.slug;
+    const fallbackSlug = UNCATEGORIZED_CATEGORY.slug;
     const lookups = buildCategoryLookups(categoryList);
 
     products.forEach((product) => {
@@ -329,7 +368,7 @@ export function ShopPage() {
   }, [categoryList]);
 
   return (
-    <div className="py-12 bg-gray-50 min-h-screen">
+    <div className="py-12 bg-white min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mt-10 mb-6">
           <h1 className="text-4xl sm:text-5xl font-serif font-bold tracking-wide text-gray-900">
@@ -342,6 +381,10 @@ export function ShopPage() {
 
         <div className="flex flex-wrap justify-center gap-3 mb-8">
           {categoryList.map((category) => {
+            const hasItems = (groupedProducts[category.slug] || []).length > 0;
+            if (category.slug === UNCATEGORIZED_CATEGORY.slug && !hasItems) {
+              return null;
+            }
             const isActive = activeCategorySlug === category.slug;
             return (
               <button

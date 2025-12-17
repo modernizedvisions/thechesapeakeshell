@@ -83,23 +83,56 @@ export function CheckoutReturnPage() {
               </div>
               <div className="divide-y divide-gray-200">
                 {session.lineItems && session.lineItems.length > 0 ? (
-                  session.lineItems.map((item, idx) => (
-                    <div key={idx} className="py-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{item.productName}</p>
-                        <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
-                      </div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {session.currency ? formatCurrency(item.lineTotal, session.currency) : item.lineTotal}
-                      </div>
-                    </div>
-                  ))
+                  session.lineItems
+                    .filter((item) => !item.isShipping)
+                    .map((item, idx) => {
+                      const showQuantity = !item.oneOff;
+                      const quantity = item.quantity || 1;
+                      return (
+                        <div key={idx} className="py-3 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.productName || 'Item'}
+                                className="w-14 h-14 rounded-md object-cover bg-gray-100 border border-gray-100"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="w-14 h-14 rounded-md bg-gray-100 border border-gray-100" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
+                              {showQuantity && (
+                                <p className="text-xs text-gray-600">Qty: {quantity}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-sm font-semibold text-gray-900 text-right">
+                            {session.currency ? formatCurrency(item.lineTotal, session.currency) : item.lineTotal}
+                          </div>
+                        </div>
+                      );
+                    })
                 ) : (
                   <p className="text-sm text-gray-600">No line items found.</p>
                 )}
               </div>
+              {(session.shippingAmount || session.lineItems?.some((li) => li.isShipping)) && session.currency && (
+                <div className="mt-4 flex items-center justify-between text-sm text-gray-700">
+                  <span>Shipping</span>
+                  <span className="font-medium">
+                    {formatCurrency(
+                      (session.shippingAmount ?? 0) ||
+                        session.lineItems?.filter((li) => li.isShipping).reduce((sum, li) => sum + (li.lineTotal || 0), 0) ||
+                        0,
+                      session.currency
+                    )}
+                  </span>
+                </div>
+              )}
               {session.currency && session.amountTotal != null && (
-                <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
+                <div className="mt-2 pt-4 border-t border-gray-200 flex items-center justify-between">
                   <span className="text-sm font-semibold text-gray-900">Order total</span>
                   <span className="text-base font-bold text-gray-900">
                     {formatCurrency(session.amountTotal, session.currency)}

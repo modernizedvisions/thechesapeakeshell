@@ -1,5 +1,6 @@
 export interface EmbeddedCheckoutSession {
   clientSecret: string;
+  sessionId: string;
 }
 
 export interface CheckoutSessionInfo {
@@ -7,6 +8,7 @@ export interface CheckoutSessionInfo {
   amountTotal: number | null;
   currency: string | null;
   customerEmail: string | null;
+  shippingAmount?: number | null;
   shipping: {
     name: string | null;
     address: Record<string, string | null> | null;
@@ -15,6 +17,10 @@ export interface CheckoutSessionInfo {
     productName: string;
     quantity: number;
     lineTotal: number;
+    imageUrl?: string | null;
+    oneOff?: boolean;
+    isShipping?: boolean;
+    stripeProductId?: string | null;
   }[];
   cardLast4: string | null;
   cardBrand?: string | null;
@@ -48,7 +54,11 @@ export async function createEmbeddedCheckoutSession(items: { productId: string; 
     throw new Error('Missing client secret from checkout session');
   }
 
-  return { clientSecret: data.clientSecret as string };
+  if (!data?.sessionId) {
+    throw new Error('Missing session id from checkout session');
+  }
+
+  return { clientSecret: data.clientSecret as string, sessionId: data.sessionId as string };
 }
 
 export async function fetchCheckoutSession(sessionId: string): Promise<CheckoutSessionInfo | null> {
@@ -67,12 +77,17 @@ export async function fetchCheckoutSession(sessionId: string): Promise<CheckoutS
     amountTotal: data.amount_total ?? null,
     currency: data.currency ?? null,
     customerEmail: data.customer_email ?? null,
+    shippingAmount: data.shipping_amount ?? null,
     shipping: data.shipping ?? null,
     lineItems: Array.isArray(data.line_items)
       ? data.line_items.map((li: any) => ({
           productName: li.productName ?? 'Item',
           quantity: li.quantity ?? 0,
           lineTotal: li.lineTotal ?? 0,
+          imageUrl: li.imageUrl ?? null,
+          oneOff: li.oneOff ?? false,
+          isShipping: li.isShipping ?? false,
+          stripeProductId: li.stripeProductId ?? null,
         }))
       : [],
     cardLast4: data.card_last4 ?? null,
