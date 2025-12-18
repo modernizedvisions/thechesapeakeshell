@@ -220,8 +220,30 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
               <div className="grid grid-cols-1 gap-4">
                 <section className="rounded-lg border border-slate-200 p-4">
                   <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Customer</p>
-                  <div className="text-sm text-slate-900">{selectedOrder.customerName || '—'}</div>
-                  <div className="text-sm text-slate-600">{selectedOrder.customerEmail || '—'}</div>
+                  <div className="text-sm text-slate-900">{selectedOrder.customerName || '-'}</div>
+                  <div className="text-sm text-slate-600">{selectedOrder.customerEmail || '-'}</div>
+                </section>
+
+                <section className="rounded-lg border border-slate-200 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Shipping</p>
+                  {selectedOrder.shippingAddress ? (
+                    <div className="text-sm text-slate-700 whitespace-pre-line">
+                      {[
+                        selectedOrder.shippingAddress.name,
+                        selectedOrder.shippingAddress.line1,
+                        selectedOrder.shippingAddress.line2,
+                        [selectedOrder.shippingAddress.city, selectedOrder.shippingAddress.state, selectedOrder.shippingAddress.postal_code]
+                          .filter(Boolean)
+                          .join(', '),
+                        selectedOrder.shippingAddress.country,
+                        selectedOrder.shippingAddress.phone ? `Phone: ${selectedOrder.shippingAddress.phone}` : null,
+                      ]
+                        .filter((line) => line && String(line).trim().length > 0)
+                        .join('\n') || 'No shipping address collected.'}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-600">No shipping address collected.</div>
+                  )}
                 </section>
 
                 <section className="rounded-lg border border-slate-200 p-4">

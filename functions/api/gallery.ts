@@ -29,10 +29,15 @@ const createGalleryTable = `
   );
 `;
 
-export async function onRequestGet(context: { env: { DB: D1Database } }): Promise<Response> {
+export async function onRequestGet(context: { env: { DB?: D1Database }; request: Request }): Promise<Response> {
   try {
-    await ensureGallerySchema(context.env.DB);
-    const { results } = await context.env.DB
+    const db = context.env.DB;
+    if (!db) {
+      console.error('[api/gallery][get] missing DB binding');
+      return jsonError('Database unavailable', 500);
+    }
+    await ensureGallerySchema(db);
+    const { results } = await db
       .prepare(
         `SELECT id, image_url, alt_text, is_active, position, created_at
          FROM gallery_images
@@ -41,18 +46,18 @@ export async function onRequestGet(context: { env: { DB: D1Database } }): Promis
       .all<GalleryRow>();
 
     const images = (results || []).map(mapRowToImage).filter(Boolean);
-    console.log('[api/gallery] fetched', { count: images.length });
+    console.log('[api/gallery][get] fetched', { count: images.length });
 
     return new Response(JSON.stringify({ images }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   } catch (error) {
-    console.error('Failed to load gallery images', error);
-    return new Response(JSON.stringify({ error: 'Failed to load gallery images' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    console.error('[api/gallery][get] Failed to load gallery images', {
+      message: (error as any)?.message,
+      stack: (error as any)?.stack,
     });
+    return jsonError('Failed to load gallery images', 500);
   }
 }
 
@@ -82,6 +87,8 @@ export async function onRequestPut(context: { env: { DB?: D1Database }; request:
     console.log('[api/gallery] saving images', {
       count: images.length,
       contentType,
+      firstPrefix: images[0]?.imageUrl ? String(images[0].imageUrl).slice(0, 32) : null,
+      firstLength: images[0]?.imageUrl ? String(images[0].imageUrl).length : 0,
     });
 
     // Overwrite-all approach keeps ordering simple for now.
@@ -89,22 +96,31 @@ export async function onRequestPut(context: { env: { DB?: D1Database }; request:
 
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-      if (!img?.imageUrl) continue;
-      const id = img.id || crypto.randomUUID();
-      await db
-        .prepare(
-          `INSERT INTO gallery_images (id, image_url, alt_text, is_active, position, created_at)
+      if (!img?.imageUrl || typeof img.imageUrl !== 'string') continue;
+      const id = img.id || safeId(`gallery-${i}`);
+      try {
+        await db
+          .prepare(
+            `INSERT INTO gallery_images (id, image_url, alt_text, is_active, position, created_at)
            VALUES (?, ?, ?, ?, ?, ?);`
-        )
-        .bind(
+          )
+          .bind(
+            id,
+            img.imageUrl,
+            img.alt || img.title || null,
+            img.hidden ? 0 : 1,
+            Number.isFinite(img.position) ? img.position : i,
+            img.createdAt || new Date().toISOString()
+          )
+          .run();
+      } catch (err) {
+        console.error('[api/gallery] insert failed', {
+          message: (err as any)?.message,
+          idx: i,
           id,
-          img.imageUrl,
-          img.alt || img.title || null,
-          img.hidden ? 0 : 1,
-          Number.isFinite(img.position) ? img.position : i,
-          img.createdAt || new Date().toISOString()
-        )
-        .run();
+        });
+        throw err;
+      }
     }
 
     const refreshed = await db
@@ -149,6 +165,17 @@ function mapRowToImage(row: GalleryRow | null | undefined) {
 
 async function ensureGallerySchema(db: D1Database) {
   await db.prepare(createGalleryTable).run();
+}
+
+function safeId(fallback: string) {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      // ignore and fallback
+    }
+  }
+  return `${fallback}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
 function jsonError(message: string, status = 500) {

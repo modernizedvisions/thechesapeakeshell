@@ -20,6 +20,14 @@ type CustomOrderRow = {
   message_id: string | null;
   status: string | null;
   payment_link: string | null;
+  shipping_name?: string | null;
+  shipping_line1?: string | null;
+  shipping_line2?: string | null;
+  shipping_city?: string | null;
+  shipping_state?: string | null;
+  shipping_postal_code?: string | null;
+  shipping_country?: string | null;
+  shipping_phone?: string | null;
   created_at: string | null;
 };
 
@@ -41,7 +49,11 @@ export async function onRequestGet(context: { env: { DB: D1Database } }): Promis
     console.log('[custom-orders] ensured schema', { columns: columns.allColumns, emailCol });
 
     const statement = context.env.DB.prepare(
-      `SELECT id, display_custom_order_id, customer_name, ${emailCol ? `${emailCol} AS customer_email` : 'NULL AS customer_email'}, description, amount, message_id, status, payment_link, created_at
+      `SELECT id, display_custom_order_id, customer_name, ${
+        emailCol ? `${emailCol} AS customer_email` : 'NULL AS customer_email'
+      }, description, amount, message_id, status, payment_link,
+        shipping_name, shipping_line1, shipping_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone,
+        created_at
        FROM custom_orders
        ORDER BY datetime(created_at) DESC`
     );
@@ -82,6 +94,14 @@ export async function onRequestPost(context: { env: { DB: D1Database }; request:
       'message_id',
       'status',
       'payment_link',
+      'shipping_name',
+      'shipping_line1',
+      'shipping_line2',
+      'shipping_city',
+      'shipping_state',
+      'shipping_postal_code',
+      'shipping_country',
+      'shipping_phone',
       'created_at',
     ].filter(Boolean) as string[];
     const placeholders = insertColumns.map(() => '?').join(', ');
@@ -99,6 +119,14 @@ export async function onRequestPost(context: { env: { DB: D1Database }; request:
       body.messageId ?? null,
       status,
       body.paymentLink ?? null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
       createdAt
     );
 
@@ -151,6 +179,14 @@ async function ensureCustomOrdersSchema(db: D1Database) {
     payment_link TEXT,
     stripe_session_id TEXT,
     stripe_payment_intent_id TEXT,
+    shipping_name TEXT,
+    shipping_line1 TEXT,
+    shipping_line2 TEXT,
+    shipping_city TEXT,
+    shipping_state TEXT,
+    shipping_postal_code TEXT,
+    shipping_country TEXT,
+    shipping_phone TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );`).run();
 
@@ -170,6 +206,21 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   if (!names.includes('stripe_payment_intent_id')) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_payment_intent_id TEXT;`).run();
   }
+  const shippingColumns = [
+    'shipping_name',
+    'shipping_line1',
+    'shipping_line2',
+    'shipping_city',
+    'shipping_state',
+    'shipping_postal_code',
+    'shipping_country',
+    'shipping_phone',
+  ];
+  for (const col of shippingColumns) {
+    if (!names.includes(col)) {
+      await db.prepare(`ALTER TABLE custom_orders ADD COLUMN ${col} TEXT;`).run();
+    }
+  }
 
   await db.prepare(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_orders_display_id ON custom_orders(display_custom_order_id);`
@@ -179,6 +230,26 @@ async function ensureCustomOrdersSchema(db: D1Database) {
 }
 
 function mapRow(row: CustomOrderRow) {
+  const shippingAddress =
+    row.shipping_line1 ||
+    row.shipping_line2 ||
+    row.shipping_city ||
+    row.shipping_state ||
+    row.shipping_postal_code ||
+    row.shipping_country ||
+    row.shipping_phone
+      ? {
+          line1: row.shipping_line1 || null,
+          line2: row.shipping_line2 || null,
+          city: row.shipping_city || null,
+          state: row.shipping_state || null,
+          postal_code: row.shipping_postal_code || null,
+          country: row.shipping_country || null,
+          phone: row.shipping_phone || null,
+          name: row.shipping_name || null,
+        }
+      : null;
+
   return {
     id: row.id,
     displayCustomOrderId: row.display_custom_order_id ?? '',
@@ -190,6 +261,8 @@ function mapRow(row: CustomOrderRow) {
     status: (row.status as 'pending' | 'paid') ?? 'pending',
     paymentLink: row.payment_link ?? null,
     createdAt: row.created_at ?? null,
+    shippingAddress,
+    shippingName: row.shipping_name ?? null,
   };
 }
 

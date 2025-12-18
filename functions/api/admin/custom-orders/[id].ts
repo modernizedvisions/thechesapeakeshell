@@ -105,6 +105,14 @@ async function ensureCustomOrdersSchema(db: D1Database) {
     message_id TEXT,
     status TEXT DEFAULT 'pending',
     payment_link TEXT,
+    shipping_name TEXT,
+    shipping_line1 TEXT,
+    shipping_line2 TEXT,
+    shipping_city TEXT,
+    shipping_state TEXT,
+    shipping_postal_code TEXT,
+    shipping_country TEXT,
+    shipping_phone TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );`).run();
 
@@ -114,9 +122,25 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   );`).run();
 
   const columns = await db.prepare(`PRAGMA table_info(custom_orders);`).all<{ name: string }>();
-  const hasDisplayId = (columns.results || []).some((col) => col.name === 'display_custom_order_id');
+  const names = (columns.results || []).map((c) => c.name);
+  const hasDisplayId = names.includes('display_custom_order_id');
   if (!hasDisplayId) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN display_custom_order_id TEXT;`).run();
+  }
+  const shippingCols = [
+    'shipping_name',
+    'shipping_line1',
+    'shipping_line2',
+    'shipping_city',
+    'shipping_state',
+    'shipping_postal_code',
+    'shipping_country',
+    'shipping_phone',
+  ];
+  for (const col of shippingCols) {
+    if (!names.includes(col)) {
+      await db.prepare(`ALTER TABLE custom_orders ADD COLUMN ${col} TEXT;`).run();
+    }
   }
 
   await db.prepare(

@@ -21,6 +21,14 @@ type CustomOrderRow = {
   description: string | null;
   amount: number | null;
   payment_link?: string | null;
+  shipping_name?: string | null;
+  shipping_line1?: string | null;
+  shipping_line2?: string | null;
+  shipping_city?: string | null;
+  shipping_state?: string | null;
+  shipping_postal_code?: string | null;
+  shipping_country?: string | null;
+  shipping_phone?: string | null;
 };
 
 const jsonResponse = (data: unknown, status = 200) =>
@@ -76,7 +84,10 @@ export async function onRequestPost(context: {
     const emailCol = columns.emailCol;
 
     const order = await env.DB.prepare(
-      `SELECT id, display_custom_order_id, customer_name, ${emailCol ? `${emailCol} AS customer_email` : 'NULL AS customer_email'}, description, amount, payment_link
+      `SELECT id, display_custom_order_id, customer_name, ${
+        emailCol ? `${emailCol} AS customer_email` : 'NULL AS customer_email'
+      }, description, amount, payment_link,
+      shipping_name, shipping_line1, shipping_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone
        FROM custom_orders WHERE id = ?`
     )
       .bind(id)
@@ -104,6 +115,12 @@ export async function onRequestPost(context: {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: customerEmail,
+      shipping_address_collection: {
+        allowed_countries: ['US'],
+      },
+      phone_number_collection: {
+        enabled: true,
+      },
       line_items: [
         {
           price_data: {
@@ -203,6 +220,14 @@ async function ensureCustomOrdersSchema(db: D1Database) {
     payment_link TEXT,
     stripe_session_id TEXT,
     stripe_payment_intent_id TEXT,
+    shipping_name TEXT,
+    shipping_line1 TEXT,
+    shipping_line2 TEXT,
+    shipping_city TEXT,
+    shipping_state TEXT,
+    shipping_postal_code TEXT,
+    shipping_country TEXT,
+    shipping_phone TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );`).run();
 
@@ -221,6 +246,21 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   }
   if (!names.includes('stripe_payment_intent_id')) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_payment_intent_id TEXT;`).run();
+  }
+  const shippingColumns = [
+    'shipping_name',
+    'shipping_line1',
+    'shipping_line2',
+    'shipping_city',
+    'shipping_state',
+    'shipping_postal_code',
+    'shipping_country',
+    'shipping_phone',
+  ];
+  for (const col of shippingColumns) {
+    if (!names.includes(col)) {
+      await db.prepare(`ALTER TABLE custom_orders ADD COLUMN ${col} TEXT;`).run();
+    }
   }
 
   await db

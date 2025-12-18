@@ -697,6 +697,28 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   if (!names.includes('stripe_payment_intent_id')) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_payment_intent_id TEXT;`).run();
   }
+  const shippingCols = [
+    'shipping_name',
+    'shipping_line1',
+    'shipping_line2',
+    'shipping_city',
+    'shipping_state',
+    'shipping_postal_code',
+    'shipping_country',
+    'shipping_phone',
+  ];
+  for (const col of shippingCols) {
+    if (!names.includes(col)) {
+      try {
+        await db.prepare(`ALTER TABLE custom_orders ADD COLUMN ${col} TEXT;`).run();
+      } catch (err) {
+        const msg = (err as any)?.message || '';
+        if (!/duplicate column|already exists/i.test(msg)) {
+          console.error('[webhooks] failed to add custom_orders column', { col, msg });
+        }
+      }
+    }
+  }
 }
 
 function mapLineItemsToEmailItems(lineItems: Stripe.LineItem[], currency: string): EmailItem[] {
@@ -772,7 +794,8 @@ async function handleCustomOrderPayment(args: {
     .prepare(
       `SELECT id, display_custom_order_id, customer_name, ${
         emailCol ? `${emailCol} AS customer_email` : 'NULL AS customer_email'
-      }, description, amount, payment_link, stripe_session_id, stripe_payment_intent_id
+      }, description, amount, payment_link, stripe_session_id, stripe_payment_intent_id,
+         shipping_name, shipping_line1, shipping_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone
        FROM custom_orders WHERE id = ?`
     )
     .bind(customOrderId)
@@ -803,6 +826,11 @@ async function handleCustomOrderPayment(args: {
   const amount = customOrder.amount ?? 0;
   const totalCents = session.amount_total ?? amount + shippingCents;
   const description = customOrder.description || 'Custom order payment';
+  const shippingPhone =
+    (shippingDetails as any)?.phone ||
+    session.customer_details?.phone ||
+    paymentIntent?.shipping?.phone ||
+    null;
 
   // Update custom order status and stripe ids
   const update = await db
@@ -810,10 +838,30 @@ async function handleCustomOrderPayment(args: {
       `UPDATE custom_orders
        SET status = 'paid',
            stripe_payment_intent_id = ?,
-           stripe_session_id = COALESCE(stripe_session_id, ?)
+           stripe_session_id = COALESCE(stripe_session_id, ?),
+           shipping_name = ?,
+           shipping_line1 = ?,
+           shipping_line2 = ?,
+           shipping_city = ?,
+           shipping_state = ?,
+           shipping_postal_code = ?,
+           shipping_country = ?,
+           shipping_phone = ?
        WHERE id = ?`
     )
-    .bind(paymentIntentId, session.id, customOrder.id)
+    .bind(
+      paymentIntentId,
+      session.id,
+      shippingName,
+      shippingAddress?.line1 || null,
+      shippingAddress?.line2 || null,
+      shippingAddress?.city || null,
+      shippingAddress?.state || null,
+      shippingAddress?.postal_code || null,
+      shippingAddress?.country || null,
+      shippingPhone,
+      customOrder.id
+    )
     .run();
   if (!update.success) {
     console.error('[custom order] failed to update status', update.error);

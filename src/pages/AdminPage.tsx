@@ -793,6 +793,13 @@ export function AdminPage() {
                     position: idx,
                     hidden: !!img.hidden,
                   }));
+                  if (import.meta.env.DEV) {
+                    console.debug('[admin gallery] saving', {
+                      count: normalized.length,
+                      first: normalized[0],
+                      payloadBytes: JSON.stringify({ images: normalized }).length,
+                    });
+                  }
                   const saved = await saveGalleryImages(normalized);
                   setGalleryImages(saved);
                   setGallerySaveState('success');
