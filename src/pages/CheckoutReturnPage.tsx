@@ -169,11 +169,20 @@ export function CheckoutReturnPage() {
 
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">Payment</h3>
-                {session.cardLast4 ? (
-                  <p className="text-sm text-gray-700">Paid with card ending in {session.cardLast4}</p>
-                ) : (
-                  <p className="text-sm text-gray-600">Payment details unavailable.</p>
-                )}
+                <div className="text-sm text-gray-700 space-y-1">
+                  <p>
+                    Payment method:{' '}
+                    {session.paymentMethodLabel ||
+                      session.paymentMethodType ||
+                      'Unknown'}
+                  </p>
+                  {(session.cardLast4 || session.paymentLast4) && (
+                    <p>
+                      Card ending in {session.cardLast4 || session.paymentLast4}
+                      {session.paymentBrand ? ` (${session.paymentBrand})` : ''}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

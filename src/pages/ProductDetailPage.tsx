@@ -151,14 +151,9 @@ export function ProductDetailPage() {
 
             <div className="space-y-4">
               <h1 className="text-3xl font-semibold text-gray-900">{loadingProduct ? 'Loading...' : product?.name}</h1>
-              {product?.type && <p className="text-sm uppercase tracking-wide text-gray-500">{product.type}</p>}
-              {product?.priceCents && <p className="text-2xl font-bold text-gray-900">{formatPrice(product.priceCents)}</p>}
-              <div className="flex gap-2">
-                {product?.oneoff && (
-                  <span className="inline-block px-3 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">One-of-a-kind</span>
-                )}
-                {isSold && <span className="inline-block px-3 py-1 bg-red-50 text-red-700 text-xs rounded-full">Sold</span>}
-              </div>
+              {product?.priceCents !== undefined && product?.priceCents !== null && (
+                <p className="text-sm font-serif font-medium text-slate-800">{formatPrice(product.priceCents)}</p>
+              )}
               <p className="text-gray-700 leading-relaxed">{product?.description}</p>
               <div className="flex gap-3 pt-2">
                 <button

@@ -74,14 +74,16 @@ export async function getHomeHeroConfig(): Promise<HeroConfig> {
         customOrdersImages: Array.isArray(config.customOrdersImages)
           ? config.customOrdersImages.slice(0, 4)
           : [],
+        heroRotationEnabled: !!config.heroRotationEnabled,
       };
     }
   } catch (err) {
     console.warn('Home hero storage read failed, using defaults.', err);
   }
   return {
-    heroImages: defaultHomeHeroConfig.heroImages.slice(0, 3),
+    heroImages: (defaultHomeHeroConfig.heroImages || []).slice(0, 3),
     customOrdersImages: (defaultHomeHeroConfig.customOrdersImages || []).slice(0, 4),
+    heroRotationEnabled: !!defaultHomeHeroConfig.heroRotationEnabled,
   };
 }
 
@@ -106,6 +108,7 @@ export async function saveHomeHeroConfig(config: HeroConfig): Promise<void> {
   const safeConfig: HeroConfig = {
     heroImages: safeImages,
     customOrdersImages: safeCustomOrders,
+    heroRotationEnabled: !!config.heroRotationEnabled,
   };
   localStorage.setItem(HOME_HERO_STORAGE_KEY, JSON.stringify(safeConfig));
 }

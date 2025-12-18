@@ -80,11 +80,10 @@ export const onRequestGet = async (context: {
     const shippingAddress =
       (shippingDetails as any)?.address ?? customerAddress ?? null;
 
-    const cardFromCharges =
-      paymentIntent?.charges?.data?.[0]?.payment_method_details &&
-      (paymentIntent.charges.data[0].payment_method_details as any).card
-        ? (paymentIntent.charges.data[0].payment_method_details as any).card
-        : null;
+    const firstCharge = paymentIntent?.charges?.data?.[0];
+    const pmd = firstCharge?.payment_method_details as any;
+    const cardFromCharges = pmd?.card || null;
+    const walletType = cardFromCharges?.wallet?.type ?? null;
 
     const cardFromPaymentMethod =
       paymentIntent?.payment_method && typeof paymentIntent.payment_method !== 'string'
@@ -93,6 +92,29 @@ export const onRequestGet = async (context: {
 
     const cardLast4 = cardFromCharges?.last4 ?? cardFromPaymentMethod?.last4 ?? null;
     const cardBrand = cardFromCharges?.brand ?? cardFromPaymentMethod?.brand ?? null;
+    const paymentMethodType =
+      walletType ||
+      pmd?.type ||
+      (paymentIntent?.payment_method_types && paymentIntent.payment_method_types[0]) ||
+      null;
+
+    const labelMap: Record<string, string> = {
+      card: 'Card',
+      link: 'Link',
+      amazon_pay: 'Amazon Pay',
+      apple_pay: 'Apple Pay',
+      google_pay: 'Google Pay',
+      paypal: 'PayPal',
+      klarna: 'Klarna',
+      afterpay_clearpay: 'Afterpay',
+      affirm: 'Affirm',
+    };
+    const paymentMethodLabel =
+      paymentMethodType && labelMap[paymentMethodType]
+        ? labelMap[paymentMethodType]
+        : paymentMethodType
+        ? paymentMethodType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+        : null;
 
     const lineItemsRaw = session.line_items?.data ?? [];
 
@@ -195,6 +217,8 @@ export const onRequestGet = async (context: {
       amount_total: session.amount_total ?? 0,
       currency: session.currency ?? 'usd',
       customer_email: session.customer_details?.email ?? paymentIntent?.receipt_email ?? null,
+      payment_method_type: paymentMethodType,
+      payment_method_label: paymentMethodLabel,
       shipping: shippingAddress
         ? {
             name: shippingName,

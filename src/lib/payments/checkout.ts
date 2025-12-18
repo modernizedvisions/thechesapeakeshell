@@ -8,6 +8,10 @@ export interface CheckoutSessionInfo {
   amountTotal: number | null;
   currency: string | null;
   customerEmail: string | null;
+  paymentMethodType?: string | null;
+  paymentMethodLabel?: string | null;
+  paymentLast4?: string | null;
+  paymentBrand?: string | null;
   shippingAmount?: number | null;
   shipping: {
     name: string | null;
@@ -77,6 +81,10 @@ export async function fetchCheckoutSession(sessionId: string): Promise<CheckoutS
     amountTotal: data.amount_total ?? null,
     currency: data.currency ?? null,
     customerEmail: data.customer_email ?? null,
+    paymentMethodType: data.payment_method_type ?? null,
+    paymentMethodLabel: data.payment_method_label ?? null,
+    paymentLast4: data.card_last4 ?? data.payment_last4 ?? null,
+    paymentBrand: data.card_brand ?? data.payment_brand ?? null,
     shippingAmount: data.shipping_amount ?? null,
     shipping: data.shipping ?? null,
     lineItems: Array.isArray(data.line_items)

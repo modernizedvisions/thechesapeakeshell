@@ -87,6 +87,7 @@ export interface CustomOrdersImage {
 export interface HeroConfig {
   heroImages: HeroCollageImage[]; // up to 3
   customOrdersImages?: CustomOrdersImage[]; // up to 4 for custom shells grid
+  heroRotationEnabled?: boolean;
 }
 
 export interface Category {

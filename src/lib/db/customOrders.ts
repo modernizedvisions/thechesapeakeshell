@@ -63,7 +63,7 @@ export async function createAdminCustomOrder(payload: {
   description: string;
   amount?: number;
   messageId?: string | null;
-}): Promise<{ id: string; displayId: string; createdAt: string }> {
+}): Promise<AdminCustomOrder> {
   const res = await fetch(ADMIN_CUSTOM_ORDERS_PATH, {
     method: 'POST',
     headers: {
@@ -81,9 +81,20 @@ export async function createAdminCustomOrder(payload: {
     throw new Error(message);
   }
 
+  if (data?.order) {
+    return data.order as AdminCustomOrder;
+  }
+
+  // Fallback for older responses
   return {
     id: data.id as string,
-    displayId: data.displayId as string,
+    displayCustomOrderId: data.displayId as string,
+    customerName: payload.customerName,
+    customerEmail: payload.customerEmail,
+    description: payload.description,
+    amount: payload.amount ?? null,
+    status: 'pending',
+    paymentLink: payload.paymentLink ?? null,
     createdAt: data.createdAt as string,
   };
 }

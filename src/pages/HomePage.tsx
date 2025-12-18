@@ -101,6 +101,7 @@ export function HomePage() {
   const [isLoadingTiles, setIsLoadingTiles] = useState(true);
   const [customOrderImages, setCustomOrderImages] = useState<CustomOrdersImage[]>([]);
   const [heroImages, setHeroImages] = useState<HeroCollageImage[]>([]);
+  const [heroRotationEnabled, setHeroRotationEnabled] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -134,7 +135,8 @@ export function HomePage() {
     try {
       const config = await fetchHomeHeroConfig();
       setCustomOrderImages((config.customOrdersImages || []).slice(0, 4));
-      setHeroImages((config.heroImages || []).slice(0, 1));
+      setHeroImages(config.heroImages || []);
+      setHeroRotationEnabled(!!config.heroRotationEnabled);
     } catch (error) {
       console.error('Error loading hero images:', error);
     } finally {
@@ -261,7 +263,7 @@ export function HomePage() {
 
   return (
     <div className="bg-white">
-      <HomeHero heroImages={heroImages} />
+      <HomeHero heroImages={heroImages} heroRotationEnabled={heroRotationEnabled} />
 
       <section className="pt-0 pb-16 bg-white" data-testid="section-hero-shop">
         <WaveDivider direction="down" fill="#ffffff" className="bg-[#F6F1E7]" dataTestId="divider-hero" />

@@ -113,8 +113,24 @@ export async function onRequestPost(context: { env: { DB: D1Database }; request:
       return jsonResponse({ error: 'Failed to create custom order', detail: result.error || 'unknown error' }, 500);
     }
 
-    // TODO: Add Stripe payment link creation when wiring payments.
-    return jsonResponse({ success: true, id, displayId, createdAt });
+    const createdRow: CustomOrderRow = {
+      id,
+      display_custom_order_id: displayId,
+      customer_name: body.customerName.trim(),
+      customer_email: emailCol ? body.customerEmail.trim() : null,
+      description: body.description.trim(),
+      amount: body.amount ?? null,
+      message_id: body.messageId ?? null,
+      status,
+      payment_link: body.paymentLink ?? null,
+      created_at: createdAt,
+    };
+
+    // Return the created order so the UI can append without a full refetch.
+    return jsonResponse({
+      success: true,
+      order: mapRow(createdRow),
+    });
   } catch (err) {
     console.error('Failed to create custom order', err);
     const message = err instanceof Error ? err.message : String(err);

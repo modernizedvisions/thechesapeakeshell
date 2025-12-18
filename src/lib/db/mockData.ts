@@ -131,48 +131,9 @@ export const mockReviews: Review[] = [
 export const defaultGalleryImages: GalleryImage[] = [];
 
 export const defaultHomeHeroConfig: HeroConfig = {
-  heroImages: [
-    {
-      id: 'hero1',
-      imageUrl:
-        'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80',
-      alt: 'Coastal waves at sunrise',
-    },
-    {
-      id: 'hero2',
-      imageUrl:
-        'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80',
-      alt: 'Handmade coastal decor on wood table',
-    },
-    {
-      id: 'hero3',
-      imageUrl:
-        'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1600&q=80',
-      alt: 'Brushed shells with color accents',
-    },
-  ],
-  customOrdersImages: [
-    {
-      imageUrl:
-        'https://images.unsplash.com/photo-1477764220021-6d123aa93321?auto=format&fit=crop&w=1200&q=80',
-      alt: 'Custom hand-painted oyster shell gift',
-    },
-    {
-      imageUrl:
-        'https://images.unsplash.com/photo-1475855581690-80accde3ae2b?auto=format&fit=crop&w=1200&q=80',
-      alt: 'Coastal oyster shell with bespoke colors',
-    },
-    {
-      imageUrl:
-        'https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=1200&q=80',
-      alt: 'Personalized oyster shell keepsake',
-    },
-    {
-      imageUrl:
-        'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80',
-      alt: 'Custom decoupage oyster shell art',
-    },
-  ],
+  heroImages: [],
+  customOrdersImages: [],
+  heroRotationEnabled: false,
 };
 
 export const GALLERY_STORAGE_KEY = 'artist-gallery-images';

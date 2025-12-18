@@ -1,5 +1,11 @@
 import Stripe from 'stripe';
 import { sendEmail } from '../../_lib/email';
+import {
+  renderOwnerCustomOrderPaidEmail,
+  renderOwnerInvoicePaidEmail,
+  renderOwnerNewOrderEmail,
+  type EmailItem,
+} from '../../_lib/emailTemplates';
 import { calculateShippingCents } from '../../_lib/shipping';
 
 type D1PreparedStatement = {
@@ -267,63 +273,31 @@ export const onRequestPost = async (context: {
       }
 
       if (insertResult && !invoiceId && !customOrderId && !customSource) {
-        const lineItems = (session.line_items?.data || []).filter((line) => {
-          const desc = line.description || (line.price as any)?.product_data?.name || '';
-          return !desc.toLowerCase().includes('shipping');
-        });
-
-        const itemLines = lineItems.map((line) => {
-          const desc =
-            line.description ||
-            (line.price?.product && typeof line.price.product !== 'string'
-              ? (line.price.product as Stripe.Product).name
-              : null) ||
-            'Item';
-          const qty = line.quantity ?? 1;
-          const lineTotal = line.amount_total ?? 0;
-          return `${desc} (x${qty}) - ${formatAmount(lineTotal, session.currency || 'usd')}`;
-        });
-
+        const emailItems = mapLineItemsToEmailItems(session.line_items?.data || [], session.currency || 'usd');
         const orderLabel = insertResult.displayOrderId || insertResult.orderId;
-        const totalLabel = formatAmount(session.amount_total ?? 0, session.currency || 'usd');
-        const shippingLabel = shippingCents ? formatAmount(shippingCents, session.currency || 'usd') : null;
-
-        const emailHtml = `
-          <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
-            <h2 style="margin: 0 0 12px; font-size: 18px;">New order received</h2>
-            <p style="margin: 0 0 8px;"><strong>Order:</strong> ${orderLabel}</p>
-            <p style="margin: 0 0 8px;"><strong>Customer:</strong> ${customerEmail || 'Unknown'}</p>
-            <p style="margin: 0 0 8px;"><strong>Total:</strong> ${totalLabel}</p>
-            ${shippingLabel ? `<p style="margin: 0 0 8px;"><strong>Shipping:</strong> ${shippingLabel}</p>` : ''}
-            <p style="margin: 12px 0 8px;"><strong>Items:</strong></p>
-            <ul style="margin: 0 0 12px; padding-left: 18px;">
-              ${itemLines.map((line) => `<li>${line}</li>`).join('')}
-            </ul>
-            <p style="margin: 0 0 8px;"><strong>Time:</strong> ${new Date().toISOString()}</p>
-            ${siteUrl ? `<p style="margin: 0;"><a href="${siteUrl}/admin" style="color:#0f172a;">View in admin</a></p>` : ''}
-          </div>
-        `;
-        const emailText = [
-          `New order received`,
-          `Order: ${orderLabel}`,
-          `Customer: ${customerEmail || 'Unknown'}`,
-          `Total: ${totalLabel}`,
-          shippingLabel ? `Shipping: ${shippingLabel}` : null,
-          'Items:',
-          ...itemLines.map((line) => `- ${line}`),
-          `Time: ${new Date().toISOString()}`,
-          siteUrl ? `Admin: ${siteUrl}/admin` : null,
-        ]
-          .filter(Boolean)
-          .join('\n');
+        const emailPayload = renderOwnerNewOrderEmail({
+          orderLabel,
+          customerName: shippingName || session.customer_details?.name || null,
+          customerEmail: customerEmail || null,
+          shippingAddress: shippingAddress,
+          items: emailItems,
+          amounts: {
+            subtotalCents: session.amount_subtotal ?? 0,
+            shippingCents,
+            totalCents: session.amount_total ?? 0,
+            currency: session.currency || 'usd',
+          },
+          createdAtIso: new Date().toISOString(),
+          adminUrl: siteUrl ? `${siteUrl}/admin` : undefined,
+        });
 
         try {
           const emailResult = await sendEmail(
             {
               to: ownerTo,
-              subject: `New Order – The Chesapeake Shell (${orderLabel})`,
-              html: emailHtml,
-              text: emailText,
+              subject: emailPayload.subject,
+              html: emailPayload.html,
+              text: emailPayload.text,
             },
             env
           );
@@ -564,21 +538,68 @@ async function handleCustomInvoicePayment(args: {
     return;
   }
 
+  const subtotalCents = Math.max(0, amountTotal - shippingCents);
+  const emailItems: EmailItem[] =
+    (session.line_items?.data || [])
+      .filter((line) => {
+        const desc = line.description || (line.price as any)?.product_data?.name || '';
+        return !desc.toLowerCase().includes('shipping');
+      })
+      .map((line) => {
+        const name =
+          line.description ||
+          (line.price?.product && typeof line.price.product !== 'string'
+            ? (line.price.product as Stripe.Product).name
+            : null) ||
+          'Invoice item';
+        const imageUrl =
+          (line.price?.product && typeof line.price.product !== 'string'
+            ? (line.price.product as Stripe.Product).images?.[0]
+            : null) ||
+          (line.price as any)?.product_data?.images?.[0] ||
+          null;
+        return {
+          name,
+          quantity: line.quantity ?? 1,
+          amountCents: line.amount_total ?? 0,
+          imageUrl,
+        } as EmailItem;
+      });
+
+  if (!emailItems.length) {
+    emailItems.push({
+      name: description || 'Invoice payment',
+      quantity: 1,
+      amountCents: subtotalCents || amountTotal,
+      imageUrl: null,
+    });
+  }
+
+  const emailPayload = renderOwnerInvoicePaidEmail({
+    invoiceId,
+    orderLabel: displayOrderId,
+    customerName: session.customer_details?.name || null,
+    customerEmail: customerEmail || null,
+    shippingAddress: session.shipping_details || null,
+    items: emailItems,
+    amounts: {
+      subtotalCents,
+      shippingCents,
+      totalCents: amountTotal,
+      currency,
+    },
+    createdAtIso: now,
+    adminUrl: siteUrl ? `${siteUrl}/admin` : undefined,
+    description,
+  });
+
   try {
     const emailResult = await sendEmail(
       {
         to: ownerTo,
-        subject: `Custom invoice paid - ${invoiceId}`,
-        html: `
-          <div style="font-family: Inter, Arial, sans-serif; color: #0f172a; padding: 12px; line-height: 1.5;">
-            <h2 style="margin: 0 0 12px; font-size: 18px; font-weight: 700;">Custom invoice paid</h2>
-            <p style="margin: 0 0 8px;">Invoice ID: ${invoiceId}</p>
-            <p style="margin: 0 0 8px;">Customer: ${customerEmail || 'Unknown'}</p>
-            <p style="margin: 0 0 12px; font-weight: 600;">Amount: ${invoiceAmount}</p>
-            <p style="margin: 0 0 12px;">Link: <a href="${invoiceLink}" style="color:#0f172a;">${invoiceLink}</a></p>
-          </div>
-        `,
-        text: `Custom invoice paid\nInvoice: ${invoiceId}\nCustomer: ${customerEmail || 'Unknown'}\nAmount: ${invoiceAmount}\nLink: ${invoiceLink}`,
+        subject: emailPayload.subject,
+        html: emailPayload.html,
+        text: emailPayload.text,
       },
       env
     );
@@ -676,6 +697,35 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   if (!names.includes('stripe_payment_intent_id')) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_payment_intent_id TEXT;`).run();
   }
+}
+
+function mapLineItemsToEmailItems(lineItems: Stripe.LineItem[], currency: string): EmailItem[] {
+  return lineItems
+    .filter((line) => {
+      const desc = line.description || (line.price as any)?.product_data?.name || '';
+      return !desc.toLowerCase().includes('shipping');
+    })
+    .map((line) => {
+      const productObj =
+        line.price?.product && typeof line.price.product !== 'string'
+          ? (line.price.product as Stripe.Product)
+          : null;
+      const name =
+        line.description ||
+        productObj?.name ||
+        (line.price as any)?.product_data?.name ||
+        'Item';
+      const imageUrl =
+        productObj?.images?.[0] ||
+        (line.price as any)?.product_data?.images?.[0] ||
+        null;
+      return {
+        name,
+        quantity: line.quantity ?? 1,
+        amountCents: line.amount_total ?? (line.price?.unit_amount ?? 0) * (line.quantity ?? 1),
+        imageUrl,
+      } as EmailItem;
+    });
 }
 
 async function handleCustomOrderPayment(args: {
@@ -809,36 +859,47 @@ async function handleCustomOrderPayment(args: {
   const totalLabel = formatAmount(totalCents, session.currency || 'usd');
   const adminLink = (env.PUBLIC_SITE_URL || env.VITE_PUBLIC_SITE_URL || '').replace(/\/+$/, '') + '/admin';
 
-  const emailHtml = `
-    <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
-      <h2 style="margin: 0 0 12px; font-size: 18px;">Custom order paid</h2>
-      <p style="margin: 0 0 8px;"><strong>Order:</strong> ${orderLabel}</p>
-      <p style="margin: 0 0 8px;"><strong>Customer:</strong> ${customOrder.customer_name || 'Unknown'} (${customerEmail || customOrder.customer_email || 'Unknown'})</p>
-      <p style="margin: 0 0 8px;"><strong>Total:</strong> ${totalLabel}</p>
-      <p style="margin: 0 0 8px;"><strong>Description:</strong> ${customOrder.description || 'Custom order payment'}</p>
-      <p style="margin: 0 0 8px;"><strong>Time:</strong> ${new Date().toISOString()}</p>
-      ${adminLink ? `<p style="margin: 0;"><a href="${adminLink}" style="color:#0f172a;">View in admin</a></p>` : ''}
-    </div>
-  `;
-  const emailText = [
-    'Custom order paid',
-    `Order: ${orderLabel}`,
-    `Customer: ${customOrder.customer_name || 'Unknown'} (${customerEmail || customOrder.customer_email || 'Unknown'})`,
-    `Total: ${totalLabel}`,
-    `Description: ${customOrder.description || 'Custom order payment'}`,
-    `Time: ${new Date().toISOString()}`,
-    adminLink ? `Admin: ${adminLink}` : null,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const emailItems: EmailItem[] = [
+    {
+      name: customOrder.description || 'Custom order',
+      quantity: 1,
+      amountCents: amount,
+      imageUrl: null,
+    },
+  ];
+  if (shippingCents) {
+    emailItems.push({
+      name: 'Shipping',
+      quantity: 1,
+      amountCents: shippingCents,
+      imageUrl: null,
+    });
+  }
+
+  const emailPayload = renderOwnerCustomOrderPaidEmail({
+    orderLabel,
+    customerName: customOrder.customer_name || null,
+    customerEmail: customerEmail || customOrder.customer_email || null,
+    shippingAddress,
+    items: emailItems,
+    amounts: {
+      subtotalCents: amount,
+      shippingCents,
+      totalCents,
+      currency: session.currency || 'usd',
+    },
+    createdAtIso: new Date().toISOString(),
+    adminUrl: adminLink || undefined,
+    description: customOrder.description || 'Custom order payment',
+  });
 
   try {
     const emailResult = await sendEmail(
       {
         to: ownerTo,
-        subject: `Custom Order Paid – ${orderLabel} – The Chesapeake Shell`,
-        html: emailHtml,
-        text: emailText,
+        subject: emailPayload.subject,
+        html: emailPayload.html,
+        text: emailPayload.text,
       },
       env
     );

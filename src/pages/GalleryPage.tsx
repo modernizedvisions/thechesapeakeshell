@@ -81,32 +81,30 @@ export function GalleryPage() {
               ) : (
                 <div className="sold-grid grid grid-cols-2 landscape:grid-cols-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {soldProducts.map((item) => (
-                    <div key={item.id} className="relative group cursor-pointer">
+                    <div key={item.id} className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                       <div
-                        className="aspect-square overflow-hidden rounded-lg bg-gray-100"
+                        className="relative aspect-square overflow-hidden bg-gray-100 cursor-pointer"
                         onClick={() => setSelectedImage(item.imageUrl)}
                       >
                         {item.imageUrl ? (
                           <img
                             src={item.imageUrl}
                             alt={item.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-gray-400">
                             No image
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                          <span className="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold">
-                            SOLD
-                          </span>
-                        </div>
                       </div>
-                      <div className="mt-2">
-                        <h3 className="font-medium text-gray-900">{item.name}</h3>
+                      <div className="p-3">
+                        <div className="flex items-center justify-between gap-3 mb-1">
+                          <h3 className="text-sm font-serif font-medium text-slate-900 truncate">{item.name}</h3>
+                          <span className="text-sm font-serif font-medium text-slate-800 whitespace-nowrap">SOLD</span>
+                        </div>
                         {item.collection && (
-                          <p className="text-sm text-gray-600">{item.collection}</p>
+                          <p className="text-xs text-slate-600">{item.collection}</p>
                         )}
                       </div>
                     </div>

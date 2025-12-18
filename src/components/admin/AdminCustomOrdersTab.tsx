@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useForm } from 'react-hook-form';
 import { AdminSectionHeader } from './AdminSectionHeader';
@@ -79,6 +79,11 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
     setSelectedOrder(null);
   };
 
+  const formatCurrency = (cents: number | null | undefined) => `$${((cents ?? 0) / 100).toFixed(2)}`;
+  const safeDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : 'Unknown date');
+  const normalizeDisplayId = (order: any) =>
+    order.displayCustomOrderId || order.display_custom_order_id || order.id || 'Order';
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
       <div className="space-y-3">
@@ -137,15 +142,15 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
               <tbody className="divide-y divide-gray-200 bg-white text-gray-900">
                 {allCustomOrders.map((order) => {
                   const amount = typeof order.amount === 'number' ? order.amount : null;
-                  const amountLabel = amount !== null ? `$${(amount / 100).toFixed(2)}` : '–';
+                  const amountLabel = amount !== null ? `$${(amount / 100).toFixed(2)}` : '—';
                   const statusLabel = order.status || 'pending';
-                  const displayId = order.displayCustomOrderId || order.display_custom_order_id || order.id || '–';
+                  const displayId = normalizeDisplayId(order);
                   const hasPaymentLink = !!order.paymentLink;
                   return (
                     <tr key={order.id}>
                       <td className="px-4 py-2 font-mono text-xs text-gray-700">{displayId}</td>
                       <td className="px-4 py-2">{order.customerName || 'Customer'}</td>
-                      <td className="px-4 py-2">{order.customerEmail || '–'}</td>
+                      <td className="px-4 py-2">{order.customerEmail || '—'}</td>
                       <td className="px-4 py-2">{amountLabel}</td>
                       <td className="px-4 py-2 capitalize">{statusLabel}</td>
                       <td className="px-4 py-2 text-xs">
@@ -160,7 +165,7 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
                             Link
                           </a>
                         ) : (
-                          '–'
+                          '—'
                         )}
                       </td>
                       <td className="px-4 py-2 text-right space-x-2">
@@ -191,73 +196,101 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
       </div>
 
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {selectedOrder ? `Custom Order ${selectedOrder.displayCustomOrderId || selectedOrder.display_custom_order_id || selectedOrder.id}` : 'Custom Order'}
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="p-0 sm:p-0 border-none">
           {selectedOrder && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-xl border border-slate-100 p-6">
+              <button
+                type="button"
+                onClick={closeView}
+                className="absolute right-3 top-3 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                CLOSE
+              </button>
+
+              <div className="space-y-5">
                 <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Customer Name</p>
-                  <p className="font-medium text-gray-900">{selectedOrder.customerName || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Customer Email</p>
-                  <p className="font-medium text-gray-900">{selectedOrder.customerEmail || '—'}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Amount</p>
-                  <p className="font-medium text-gray-900">
-                    {typeof selectedOrder.amount === 'number' ? `$${(selectedOrder.amount / 100).toFixed(2)}` : '—'}
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1">Custom Order</p>
+                  <div className="text-xl font-semibold text-slate-900">
+                    Order {normalizeDisplayId(selectedOrder)}
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    Placed {safeDate(selectedOrder.createdAt || selectedOrder.created_at)}
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
-                  <p className="font-medium text-gray-900 capitalize">{selectedOrder.status || 'pending'}</p>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <section className="rounded-lg border border-slate-200 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Customer</p>
+                    <div className="text-sm text-slate-900">{selectedOrder.customerName || '—'}</div>
+                    <div className="text-sm text-slate-600">{selectedOrder.customerEmail || '—'}</div>
+                  </section>
+
+                  <section className="rounded-lg border border-slate-200 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Status</p>
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 border ${
+                          (selectedOrder.status || 'pending') === 'paid'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            : 'bg-amber-50 text-amber-700 border-amber-100'
+                        }`}
+                      >
+                        {(selectedOrder.status || 'pending').toUpperCase()}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-slate-700 border border-slate-200">
+                        {safeDate(selectedOrder.createdAt || selectedOrder.created_at)}
+                      </span>
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-slate-200 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Totals</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600">Total</span>
+                        <span className="font-medium text-slate-900">
+                          {typeof selectedOrder.amount === 'number' ? formatCurrency(selectedOrder.amount) : '—'}
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-slate-200 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Message</p>
+                    <div className="text-sm text-slate-900 whitespace-pre-wrap">
+                      {selectedOrder.description || '—'}
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-slate-200 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Payment Link</p>
+                    {selectedOrder.paymentLink ? (
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <a
+                          href={selectedOrder.paymentLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                        >
+                          Open Stripe Checkout
+                        </a>
+                        <button
+                          type="button"
+                          className="text-xs text-slate-600 hover:text-slate-800 underline"
+                          onClick={() => {
+                            if (navigator?.clipboard?.writeText) {
+                              navigator.clipboard.writeText(selectedOrder.paymentLink);
+                            }
+                          }}
+                        >
+                          Copy link
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-600">Not sent yet.</div>
+                    )}
+                  </section>
                 </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Created At</p>
-                  <p className="font-medium text-gray-900">
-                    {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString() : '—'}
-                  </p>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Payment Link</p>
-                {selectedOrder.paymentLink ? (
-                  <a
-                    href={selectedOrder.paymentLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 hover:underline break-words"
-                  >
-                    {selectedOrder.paymentLink}
-                  </a>
-                ) : (
-                  <p className="text-gray-900 font-medium">—</p>
-                )}
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Message / Description</p>
-                <div className="mt-1 max-h-48 overflow-auto rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-900">
-                  {selectedOrder.description || '—'}
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={closeView}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:border-gray-400"
-                >
-                  Close
-                </button>
               </div>
             </div>
           )}

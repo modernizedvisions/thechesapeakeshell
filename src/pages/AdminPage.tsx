@@ -83,7 +83,11 @@ export function AdminPage() {
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
-  const [heroConfig, setHeroConfig] = useState<HeroConfig>({ heroImages: [], customOrdersImages: [] });
+  const [heroConfig, setHeroConfig] = useState<HeroConfig>({
+    heroImages: [],
+    customOrdersImages: [],
+    heroRotationEnabled: false,
+  });
   const [activeTab, setActiveTab] = useState<'orders' | 'shop' | 'messages' | 'customOrders' | 'images' | 'sold'>('orders');
   const [gallerySaveState, setGallerySaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [homeSaveState, setHomeSaveState] = useState<'idle' | 'saving' | 'success'>('idle');
@@ -134,6 +138,7 @@ export function AdminPage() {
       const configToSave: HeroConfig = {
         heroImages: (heroConfig.heroImages || []).slice(0, 3),
         customOrdersImages: (heroConfig.customOrdersImages || []).slice(0, 4),
+        heroRotationEnabled: !!heroConfig.heroRotationEnabled,
       };
       await saveHomeHeroConfig(configToSave);
       setHomeSaveState('success');
@@ -220,6 +225,7 @@ export function AdminPage() {
       setHeroConfig({
         heroImages: (heroData.heroImages || []).slice(0, 3),
         customOrdersImages: (heroData.customOrdersImages || []).slice(0, 4),
+        heroRotationEnabled: !!heroData.heroRotationEnabled,
       });
     } catch (err) {
       // Already logged per-call; avoid throwing to keep orders visible.
@@ -721,22 +727,25 @@ export function AdminPage() {
           <AdminCustomOrdersTab
             allCustomOrders={customOrders}
             onCreateOrder={async (order) => {
+              // Previously we set the global loading flag and refetched the table, causing a full-table flicker.
+              // We now append the created order locally for a seamless UX.
               try {
                 setCustomOrdersError(null);
-                setIsLoadingCustomOrders(true);
-                await createAdminCustomOrder({
+                const created = await createAdminCustomOrder({
                   customerName: order.customerName,
                   customerEmail: order.customerEmail,
                   description: order.description,
                   amount: order.amount ? Math.round(Number(order.amount) * 100) : undefined,
                   messageId: order.messageId ?? null,
                 });
-                await loadCustomOrders();
+                setCustomOrders((prev) => {
+                  if (prev.some((o) => o.id === created.id)) return prev;
+                  return [created, ...prev];
+                });
+                setCustomOrderDraft(null);
               } catch (err) {
                 console.error('Failed to create custom order', err);
                 setCustomOrdersError(err instanceof Error ? err.message : 'Failed to create custom order');
-              } finally {
-                setIsLoadingCustomOrders(false);
               }
             }}
             initialDraft={customOrderDraft}
@@ -769,6 +778,8 @@ export function AdminPage() {
               onCustomOrdersChange={(images) => setHeroConfig((prev) => ({ ...prev, customOrdersImages: images }))}
               onSaveHeroConfig={handleSaveHeroConfig}
               homeSaveState={homeSaveState}
+              heroRotationEnabled={!!heroConfig.heroRotationEnabled}
+              onHeroRotationToggle={(enabled) => setHeroConfig((prev) => ({ ...prev, heroRotationEnabled: enabled }))}
             />
 
             <AdminGalleryTab

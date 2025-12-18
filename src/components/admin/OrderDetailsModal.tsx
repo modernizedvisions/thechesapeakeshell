@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import type { AdminOrder } from '../../lib/db/orders';
 
 interface OrderDetailsModalProps {
@@ -23,14 +23,7 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
   const shipping = order.shippingAddress;
   const hasShipping = !!shipping;
 
-  const rawItems = Array.isArray(order.items) && order.items.length
-    ? order.items
-    : [{
-        productId: 'item',
-        productName: 'Item',
-        quantity: 1,
-        priceCents: order.totalCents || 0,
-      }];
+  const [itemImages, setItemImages] = useState<Record<string, string>>({});
 
   const isShippingItem = (item: any) => {
     const name = (item.productName || '').toLowerCase();
@@ -38,11 +31,56 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
     return name.includes('shipping') || pid === 'shipping' || pid === 'ship' || pid === 'shipping_line';
   };
 
+  const rawItems = useMemo(() => {
+    if (Array.isArray(order.items) && order.items.length) return order.items;
+    return [{
+      productId: 'item',
+      productName: 'Item',
+      quantity: 1,
+      priceCents: order.totalCents || 0,
+    }];
+  }, [order]);
+
+  useEffect(() => {
+    const fetchImages = async () => {
+      const missing = rawItems.filter(
+        (i) =>
+          i.productId &&
+          !isShippingItem(i) &&
+          !i.productImageUrl &&
+          !itemImages[i.productId as string]
+      );
+      for (const itm of missing) {
+        try {
+          const res = await fetch(`/api/products/${itm.productId}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          const url =
+            data?.image_url ||
+            (Array.isArray(data?.images) ? data.images[0] : null) ||
+            (Array.isArray(data?.image_urls) ? data.image_urls[0] : null) ||
+            null;
+          if (url) {
+            setItemImages((prev) => ({ ...prev, [itm.productId as string]: url }));
+          }
+        } catch {
+          // ignore failures
+        }
+      }
+    };
+    fetchImages();
+  }, [rawItems, itemImages]);
+
   const shippingFromItems = rawItems
     .filter(isShippingItem)
     .reduce((sum, item) => sum + (item.priceCents || 0) * (item.quantity || 1), 0);
 
-  const items = rawItems.filter((i) => !isShippingItem(i));
+  const items = rawItems
+    .filter((i) => !isShippingItem(i))
+    .map((i) => ({
+      ...i,
+      productImageUrl: i.productImageUrl || (i.productId ? itemImages[i.productId] : undefined),
+    }));
 
   const lineTotal = (qty: number, priceCents: number) => formatCurrency((qty || 0) * (priceCents || 0));
   const shippingCents = order.shippingCents ?? shippingFromItems ?? 0;
@@ -70,26 +108,42 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
           <div className="grid grid-cols-1 gap-4">
             <section className="rounded-lg border border-slate-200 p-4">
               <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Customer</p>
-              <div className="text-sm text-slate-900">{customerName}</div>
-              <div className="text-sm text-slate-600">{customerEmail}</div>
-            </section>
-
-            <section className="rounded-lg border border-slate-200 p-4">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Shipping Address</p>
-              {hasShipping ? (
-                <div className="text-sm text-slate-700 space-y-0.5">
-                  {shipping?.line1 && <div>{shipping.line1}</div>}
-                  {shipping?.line2 && <div>{shipping.line2}</div>}
-                  {(shipping?.city || shipping?.state || shipping?.postal_code) && (
-                    <div>
-                      {[shipping?.city, shipping?.state, shipping?.postal_code].filter(Boolean).join(', ')}
+                {items.map((item, idx) => (
+                  <div key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-10 w-10 rounded-md bg-slate-100 border border-slate-200 overflow-hidden">
+                        {item.productImageUrl ? (
+                          <img
+                            src={item.productImageUrl}
+                            alt={item.productName || 'Product'}
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-slate-100" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-slate-900 truncate">
+                          {item.productName || item.productId || 'Item'}
+                        </div>
+                        {item.quantity && item.quantity > 1 ? (
+                          <div className="text-xs text-slate-600">
+                            Qty: {item.quantity} • {formatCurrency(item.priceCents)}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-600">{formatCurrency(item.priceCents)}</div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  {shipping?.country && <div>{shipping.country}</div>}
-                </div>
-              ) : (
-                <div className="text-sm text-slate-500">No shipping address available.</div>
-              )}
+                    <div className="text-sm font-semibold text-slate-900 whitespace-nowrap">
+                      {lineTotal(item.quantity, item.priceCents)}
+                    </div>
+                  </div>
+                ))}
             </section>
 
             <section className="rounded-lg border border-slate-200 p-4">
@@ -131,7 +185,7 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
                         {item.productName || item.productId || 'Item'}
                       </div>
                       <div className="text-xs text-slate-600">
-                          Qty: {item.quantity || 0} × {formatCurrency(item.priceCents)}
+                          Qty: {item.quantity || 0} Ã— {formatCurrency(item.priceCents)}
                         </div>
                       </div>
                     </div>
@@ -166,5 +220,4 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
     </div>
   );
 }
-
 

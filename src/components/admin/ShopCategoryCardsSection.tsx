@@ -143,47 +143,64 @@ export function ShopCategoryCardsSection({ categories = [], onCategoryUpdated }:
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <AdminSectionHeader
-        title="Category Cards"
-        subtitle="choose which categories appear on the homepage."
-        className="mt-10"
-      />
-      {saveState === 'saving' && (
-        <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-3">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Saving...
+    <div className="space-y-4 rounded-lg border bg-white p-4 shadow-sm">
+      <div className="relative pb-1">
+        <AdminSectionHeader
+          title="Category Cards"
+          subtitle="choose which categories appear on the homepage."
+          className="text-center"
+        />
+        <div className="absolute right-0 top-0 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saveState === 'saving'}
+            className="inline-flex items-center gap-2 rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+          >
+            {saveState === 'saving' ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : saveState === 'success' ? (
+              'Saved'
+            ) : (
+              'Save Category Cards'
+            )}
+          </button>
         </div>
-      )}
-      {saveState === 'success' && <div className="text-sm text-green-600 text-center mb-3">Saved!</div>}
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.slice(0, SLOT_COUNT).map((tile, idx) => {
           const selectedCategory = resolveCategoryForTile(tile);
           const displayLabel = selectedCategory?.name || tile.label || `Category ${idx + 1}`;
           const pillText = `Shop ${displayLabel}`;
           const categoryImage = selectedCategory?.heroImageUrl || selectedCategory?.imageUrl;
+          const inputId = `category-tile-${tile.id || idx}`;
 
           return (
-            <div key={tile.id || idx} className="space-y-3">
-              <div className="relative overflow-hidden rounded-lg shadow-sm aspect-[3/4] bg-gray-100">
-                {categoryImage ? (
-                  <img src={categoryImage} alt={displayLabel} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">No image uploaded</div>
-                )}
-
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/55 to-transparent" />
-                <div className="absolute inset-x-0 bottom-4 flex justify-center">
-                  <span className="pointer-events-auto inline-flex items-center rounded-full bg-white px-5 py-2 text-xs font-medium text-gray-900 shadow-sm">
-                    {pillText}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-2 flex w-full items-center justify-between gap-2">
-                <div className="w-full max-w-xs">
+            <div
+              key={tile.id || idx}
+              className="space-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (file) {
+                  setActiveTileId(tile.id);
+                  handleTileImageSelect(file, tile.id);
+                }
+              }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1">
+                  <label className="sr-only" htmlFor={inputId}>
+                    Category
+                  </label>
                   <select
+                    id={inputId}
+                    aria-label="Select category"
                     value={selectedCategory?.id || ''}
                     onChange={(e) => handleCategoryChange(tile.id, e.target.value)}
                     className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
@@ -196,33 +213,55 @@ export function ShopCategoryCardsSection({ categories = [], onCategoryUpdated }:
                     ))}
                   </select>
                 </div>
+                <div className="flex items-center gap-2">
+                  {categoryImage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cleared = { ...tile, imageUrl: '', categoryId: tile.categoryId };
+                        setTiles((prev) =>
+                          prev.map((t) => (t.id === tile.id ? cleared : t))
+                        );
+                      }}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTileId(tile.id);
+                      fileInputRef.current?.click();
+                    }}
+                    className="text-xs text-slate-700 underline hover:text-slate-900"
+                  >
+                    {categoryImage ? 'Replace' : 'Upload'}
+                  </button>
+                </div>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTileId(tile.id);
-                    fileInputRef.current?.click();
-                  }}
-                  className="text-xs text-gray-700 underline whitespace-nowrap"
-                >
-                  {categoryImage ? 'Replace image' : 'Upload image'}
-                </button>
+              <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-gray-100 aspect-[3/4]">
+                {categoryImage ? (
+                  <img src={categoryImage} alt={displayLabel} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
+                    No image uploaded
+                  </div>
+                )}
+
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/55 to-transparent" />
+                <div className="absolute inset-x-0 bottom-4 flex justify-center">
+                  <span className="pointer-events-auto inline-flex items-center rounded-full bg-white px-5 py-2 text-xs font-medium text-gray-900 shadow-sm">
+                    {pillText}
+                  </span>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-4">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saveState === 'saving'}
-          className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-        >
-          Save Category Cards
-        </button>
-      </div>
       <input
         ref={fileInputRef}
         type="file"

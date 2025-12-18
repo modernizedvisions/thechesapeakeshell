@@ -1,18 +1,9 @@
 import { sendEmail } from '../../_lib/email';
 import type { EmailEnv } from '../../_lib/email';
+import { renderOwnerNewOrderEmail } from '../../_lib/emailTemplates';
 
 type TestBody = {
   to?: string;
-};
-
-const TEST_SUBJECT = 'New Inquiry – The Chesapeake Shell (Test)';
-const TEST_TEXT = 'This is a test email from The Chesapeake Shell.';
-const TEST_HTML = `<div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">This is a test email from The Chesapeake Shell.</div>`;
-const TEST_ATTACHMENT = {
-  filename: 'pixel.png',
-  content:
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2N3JkAAAAASUVORK5CYII=',
-  contentType: 'image/png',
 };
 
 // TODO: Add auth before enabling this endpoint in production.
@@ -38,13 +29,38 @@ export async function onRequestPost(context: { request: Request; env: EmailEnv }
     );
   }
 
+  const template = renderOwnerNewOrderEmail({
+    orderLabel: '25-123',
+    customerName: 'Sample Customer',
+    customerEmail: 'customer@example.com',
+    shippingAddress: {
+      line1: '123 Bay St',
+      city: 'Chesapeake',
+      state: 'VA',
+      postal_code: '23320',
+      country: 'US',
+      name: 'Sample Customer',
+    } as any,
+    items: [
+      { name: 'Ornament Shell', quantity: 1, amountCents: 4500, imageUrl: 'https://placehold.co/56x56' },
+      { name: 'Ring Dish', quantity: 2, amountCents: 6400, imageUrl: null },
+    ],
+    amounts: {
+      subtotalCents: 10900,
+      shippingCents: 500,
+      totalCents: 11400,
+      currency: 'usd',
+    },
+    createdAtIso: new Date().toISOString(),
+    adminUrl: (env.PUBLIC_SITE_URL || env.VITE_PUBLIC_SITE_URL || '').replace(/\/+$/, '') + '/admin',
+  });
+
   const result = await sendEmail(
     {
       to,
-      subject: TEST_SUBJECT,
-      text: TEST_TEXT,
-      html: TEST_HTML,
-      attachments: [TEST_ATTACHMENT],
+      subject: template.subject,
+      text: template.text,
+      html: template.html,
     },
     env
   );
