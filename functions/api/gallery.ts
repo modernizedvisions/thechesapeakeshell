@@ -41,6 +41,7 @@ export async function onRequestGet(context: { env: { DB: D1Database } }): Promis
       .all<GalleryRow>();
 
     const images = (results || []).map(mapRowToImage).filter(Boolean);
+    console.log('[api/gallery] fetched', { count: images.length });
 
     return new Response(JSON.stringify({ images }), {
       status: 200,
@@ -55,20 +56,42 @@ export async function onRequestGet(context: { env: { DB: D1Database } }): Promis
   }
 }
 
-export async function onRequestPut(context: { env: { DB: D1Database }; request: Request }): Promise<Response> {
+export async function onRequestPut(context: { env: { DB?: D1Database }; request: Request }): Promise<Response> {
   try {
-    await ensureGallerySchema(context.env.DB);
-    const body = await context.request.json();
+    const db = context.env.DB;
+    const contentType = context.request.headers.get('content-type');
+    if (!db) {
+      console.error('[api/gallery] missing DB binding');
+      return jsonError('Database unavailable', 500);
+    }
+
+    await ensureGallerySchema(db);
+
+    let body: any = null;
+    try {
+      body = await context.request.json();
+    } catch (parseError) {
+      console.error('[api/gallery] failed to parse JSON body', {
+        message: (parseError as any)?.message,
+        contentType,
+      });
+      return jsonError('Invalid JSON payload', 400);
+    }
+
     const images = Array.isArray(body?.images) ? body.images : [];
+    console.log('[api/gallery] saving images', {
+      count: images.length,
+      contentType,
+    });
 
     // Overwrite-all approach keeps ordering simple for now.
-    await context.env.DB.prepare(`DELETE FROM gallery_images;`).run();
+    await db.prepare(`DELETE FROM gallery_images;`).run();
 
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
       if (!img?.imageUrl) continue;
       const id = img.id || crypto.randomUUID();
-      await context.env.DB
+      await db
         .prepare(
           `INSERT INTO gallery_images (id, image_url, alt_text, is_active, position, created_at)
            VALUES (?, ?, ?, ?, ?, ?);`
@@ -84,7 +107,7 @@ export async function onRequestPut(context: { env: { DB: D1Database }; request: 
         .run();
     }
 
-    const refreshed = await context.env.DB
+    const refreshed = await db
       .prepare(
         `SELECT id, image_url, alt_text, is_active, position, created_at
          FROM gallery_images
@@ -93,19 +116,23 @@ export async function onRequestPut(context: { env: { DB: D1Database }; request: 
       .all<GalleryRow>();
 
     const savedImages = (refreshed.results || []).map(mapRowToImage).filter(Boolean);
+    console.log('[api/gallery] saved', { count: savedImages.length });
 
     return new Response(JSON.stringify({ images: savedImages }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   } catch (error) {
-    console.error('Failed to save gallery images', error);
-    return new Response(JSON.stringify({ error: 'Failed to save gallery images' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    console.error('[api/gallery] Failed to save gallery images', {
+      message: (error as any)?.message,
+      stack: (error as any)?.stack,
     });
+    return jsonError('Failed to save gallery images', 500);
   }
 }
+
+// Allow POST as a convenience in case clients mis-send the verb.
+export const onRequestPost = onRequestPut;
 
 function mapRowToImage(row: GalleryRow | null | undefined) {
   if (!row?.id || !row.image_url) return null;
@@ -122,4 +149,11 @@ function mapRowToImage(row: GalleryRow | null | undefined) {
 
 async function ensureGallerySchema(db: D1Database) {
   await db.prepare(createGalleryTable).run();
+}
+
+function jsonError(message: string, status = 500) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }

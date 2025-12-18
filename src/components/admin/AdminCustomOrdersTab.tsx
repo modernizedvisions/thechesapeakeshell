@@ -196,105 +196,103 @@ export const AdminCustomOrdersTab: React.FC<AdminCustomOrdersTabProps> = ({
       </div>
 
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="p-0 sm:p-0 border-none">
-          {selectedOrder && (
-            <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-xl border border-slate-100 p-6">
-              <button
-                type="button"
-                onClick={closeView}
-                className="absolute right-3 top-3 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-              >
-                CLOSE
-              </button>
+        {selectedOrder && (
+          <DialogContent className="w-full max-w-xl rounded-2xl bg-white shadow-xl border border-slate-100 p-6">
+            <button
+              type="button"
+              onClick={closeView}
+              className="absolute right-3 top-3 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              CLOSE
+            </button>
 
-              <div className="space-y-5">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1">Custom Order</p>
-                  <div className="text-xl font-semibold text-slate-900">
-                    Order {normalizeDisplayId(selectedOrder)}
+            <div className="space-y-5">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1">Custom Order</p>
+                <div className="text-xl font-semibold text-slate-900">
+                  Order {normalizeDisplayId(selectedOrder)}
+                </div>
+                <p className="text-sm text-slate-600">
+                  Placed {safeDate(selectedOrder.createdAt || selectedOrder.created_at)}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <section className="rounded-lg border border-slate-200 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Customer</p>
+                  <div className="text-sm text-slate-900">{selectedOrder.customerName || '—'}</div>
+                  <div className="text-sm text-slate-600">{selectedOrder.customerEmail || '—'}</div>
+                </section>
+
+                <section className="rounded-lg border border-slate-200 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Status</p>
+                  <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 border ${
+                        (selectedOrder.status || 'pending') === 'paid'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                          : 'bg-amber-50 text-amber-700 border-amber-100'
+                      }`}
+                    >
+                      {(selectedOrder.status || 'pending').toUpperCase()}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-slate-700 border border-slate-200">
+                      {safeDate(selectedOrder.createdAt || selectedOrder.created_at)}
+                    </span>
                   </div>
-                  <p className="text-sm text-slate-600">
-                    Placed {safeDate(selectedOrder.createdAt || selectedOrder.created_at)}
-                  </p>
-                </div>
+                </section>
 
-                <div className="grid grid-cols-1 gap-4">
-                  <section className="rounded-lg border border-slate-200 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Customer</p>
-                    <div className="text-sm text-slate-900">{selectedOrder.customerName || '—'}</div>
-                    <div className="text-sm text-slate-600">{selectedOrder.customerEmail || '—'}</div>
-                  </section>
+                <section className="rounded-lg border border-slate-200 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Totals</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">Total</span>
+                      <span className="font-medium text-slate-900">
+                        {typeof selectedOrder.amount === 'number' ? formatCurrency(selectedOrder.amount) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </section>
 
-                  <section className="rounded-lg border border-slate-200 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Status</p>
-                    <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                      <span
-                        className={`inline-flex items-center rounded-full px-3 py-1 border ${
-                          (selectedOrder.status || 'pending') === 'paid'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                            : 'bg-amber-50 text-amber-700 border-amber-100'
-                        }`}
+                <section className="rounded-lg border border-slate-200 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Message</p>
+                  <div className="text-sm text-slate-900 whitespace-pre-wrap">
+                    {selectedOrder.description || '—'}
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-slate-200 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Payment Link</p>
+                  {selectedOrder.paymentLink ? (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <a
+                        href={selectedOrder.paymentLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
                       >
-                        {(selectedOrder.status || 'pending').toUpperCase()}
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-slate-700 border border-slate-200">
-                        {safeDate(selectedOrder.createdAt || selectedOrder.created_at)}
-                      </span>
+                        Open Stripe Checkout
+                      </a>
+                      <button
+                        type="button"
+                        className="text-xs text-slate-600 hover:text-slate-800 underline"
+                        onClick={() => {
+                          if (navigator?.clipboard?.writeText) {
+                            navigator.clipboard.writeText(selectedOrder.paymentLink);
+                          }
+                        }}
+                      >
+                        Copy link
+                      </button>
                     </div>
-                  </section>
-
-                  <section className="rounded-lg border border-slate-200 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Totals</p>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-600">Total</span>
-                        <span className="font-medium text-slate-900">
-                          {typeof selectedOrder.amount === 'number' ? formatCurrency(selectedOrder.amount) : '—'}
-                        </span>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="rounded-lg border border-slate-200 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Message</p>
-                    <div className="text-sm text-slate-900 whitespace-pre-wrap">
-                      {selectedOrder.description || '—'}
-                    </div>
-                  </section>
-
-                  <section className="rounded-lg border border-slate-200 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">Payment Link</p>
-                    {selectedOrder.paymentLink ? (
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <a
-                          href={selectedOrder.paymentLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-                        >
-                          Open Stripe Checkout
-                        </a>
-                        <button
-                          type="button"
-                          className="text-xs text-slate-600 hover:text-slate-800 underline"
-                          onClick={() => {
-                            if (navigator?.clipboard?.writeText) {
-                              navigator.clipboard.writeText(selectedOrder.paymentLink);
-                            }
-                          }}
-                        >
-                          Copy link
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-slate-600">Not sent yet.</div>
-                    )}
-                  </section>
-                </div>
+                  ) : (
+                    <div className="text-sm text-slate-600">Not sent yet.</div>
+                  )}
+                </section>
               </div>
             </div>
-          )}
-        </DialogContent>
+          </DialogContent>
+        )}
       </Dialog>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

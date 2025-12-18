@@ -314,9 +314,7 @@ export function ShopPage() {
         console.error('Error loading categories:', categoryError);
       }
 
-      const derivedCategories = deriveCategoriesFromProducts(availableProducts);
-      const mergedCategories = mergeCategories(apiCategories, derivedCategories);
-      const orderedCategories = orderCategorySummaries(dedupeCategories(mergedCategories));
+      const orderedCategories = orderCategorySummaries(dedupeCategories(apiCategories));
       console.log(
         '[ShopPage] merged category list',
         orderedCategories.map((c) => ({ slug: c.slug, name: c.name }))

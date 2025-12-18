@@ -47,7 +47,7 @@ function GalleryAdmin({
   saveState,
   fileInputRef,
   title = 'Gallery Management',
-  description = 'Add, hide, or remove gallery images.',
+  description = 'Add, hide, or remove gallery images.', // Uses PUT /api/gallery with payload { images: GalleryImage[] }
   maxImages,
 }: GalleryAdminProps) {
   const handleAddImages = (files: FileList | null) => {
