@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { AdminOrder } from '../../lib/db/orders';
 
 interface OrderDetailsModalProps {
@@ -33,12 +33,14 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
 
   const rawItems = useMemo(() => {
     if (Array.isArray(order.items) && order.items.length) return order.items;
-    return [{
-      productId: 'item',
-      productName: 'Item',
-      quantity: 1,
-      priceCents: order.totalCents || 0,
-    }];
+    return [
+      {
+        productId: 'item',
+        productName: 'Item',
+        quantity: 1,
+        priceCents: order.totalCents || 0,
+      },
+    ];
   }, [order]);
 
   useEffect(() => {
@@ -87,6 +89,17 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
   const subtotalCents = items.reduce((sum, item) => sum + (item.priceCents || 0) * (item.quantity || 1), 0);
   const totalCents = order.totalCents ?? subtotalCents + shippingCents;
 
+  const formattedAddress = hasShipping
+    ? [
+        shipping?.line1,
+        shipping?.line2,
+        [shipping?.city, shipping?.state, shipping?.postal_code].filter(Boolean).join(', '),
+        shipping?.country,
+      ]
+        .filter((line) => (line || '').toString().trim().length > 0)
+        .join('\n') || 'Shipping address not provided'
+    : 'No shipping address provided.';
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-3 py-6">
       <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-xl border border-slate-100 p-6">
@@ -108,42 +121,11 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
           <div className="grid grid-cols-1 gap-4">
             <section className="rounded-lg border border-slate-200 p-4">
               <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-1.5">Customer</p>
-                {items.map((item, idx) => (
-                  <div key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-10 w-10 rounded-md bg-slate-100 border border-slate-200 overflow-hidden">
-                        {item.productImageUrl ? (
-                          <img
-                            src={item.productImageUrl}
-                            alt={item.productName || 'Product'}
-                            loading="lazy"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="h-full w-full bg-slate-100" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-slate-900 truncate">
-                          {item.productName || item.productId || 'Item'}
-                        </div>
-                        {item.quantity && item.quantity > 1 ? (
-                          <div className="text-xs text-slate-600">
-                            Qty: {item.quantity} • {formatCurrency(item.priceCents)}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-slate-600">{formatCurrency(item.priceCents)}</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-sm font-semibold text-slate-900 whitespace-nowrap">
-                      {lineTotal(item.quantity, item.priceCents)}
-                    </div>
-                  </div>
-                ))}
+              <div className="space-y-1 text-sm text-slate-700">
+                <div className="font-medium text-slate-900">{customerName}</div>
+                <div className="text-slate-600">{customerEmail}</div>
+                <div className="text-slate-600 whitespace-pre-line">{formattedAddress}</div>
+              </div>
             </section>
 
             <section className="rounded-lg border border-slate-200 p-4">
@@ -180,12 +162,12 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
                           />
                         ) : null}
                       </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-slate-900 truncate">
-                        {item.productName || item.productId || 'Item'}
-                      </div>
-                      <div className="text-xs text-slate-600">
-                          Qty: {item.quantity || 0} Ã— {formatCurrency(item.priceCents)}
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-slate-900 truncate">
+                          {item.productName || item.productId || 'Item'}
+                        </div>
+                        <div className="text-xs text-slate-600">
+                          Qty: {item.quantity || 0} — {formatCurrency(item.priceCents)}
                         </div>
                       </div>
                     </div>
@@ -220,4 +202,3 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
     </div>
   );
 }
-
