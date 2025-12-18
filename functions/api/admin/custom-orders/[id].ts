@@ -105,6 +105,7 @@ async function ensureCustomOrdersSchema(db: D1Database) {
     message_id TEXT,
     status TEXT DEFAULT 'pending',
     payment_link TEXT,
+    paid_at TEXT,
     shipping_name TEXT,
     shipping_line1 TEXT,
     shipping_line2 TEXT,
@@ -126,6 +127,9 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   const hasDisplayId = names.includes('display_custom_order_id');
   if (!hasDisplayId) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN display_custom_order_id TEXT;`).run();
+  }
+  if (!names.includes('paid_at')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN paid_at TEXT;`).run();
   }
   const shippingCols = [
     'shipping_name',

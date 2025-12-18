@@ -28,6 +28,7 @@ type CustomOrderRow = {
   shipping_postal_code?: string | null;
   shipping_country?: string | null;
   shipping_phone?: string | null;
+  paid_at?: string | null;
   created_at: string | null;
 };
 
@@ -53,7 +54,7 @@ export async function onRequestGet(context: { env: { DB: D1Database } }): Promis
         emailCol ? `${emailCol} AS customer_email` : 'NULL AS customer_email'
       }, description, amount, message_id, status, payment_link,
         shipping_name, shipping_line1, shipping_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone,
-        created_at
+        paid_at, created_at
        FROM custom_orders
        ORDER BY datetime(created_at) DESC`
     );
@@ -221,6 +222,9 @@ async function ensureCustomOrdersSchema(db: D1Database) {
       await db.prepare(`ALTER TABLE custom_orders ADD COLUMN ${col} TEXT;`).run();
     }
   }
+  if (!names.includes('paid_at')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN paid_at TEXT;`).run();
+  }
 
   await db.prepare(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_orders_display_id ON custom_orders(display_custom_order_id);`
@@ -261,6 +265,7 @@ function mapRow(row: CustomOrderRow) {
     status: (row.status as 'pending' | 'paid') ?? 'pending',
     paymentLink: row.payment_link ?? null,
     createdAt: row.created_at ?? null,
+    paidAt: row.paid_at ?? null,
     shippingAddress,
     shippingName: row.shipping_name ?? null,
   };

@@ -142,8 +142,8 @@ export async function onRequestPost(context: {
           quantity: 1,
         },
       ],
-      success_url: `${baseUrl}/admin?customOrderPaid=1&co=${encodeURIComponent(displayId)}`,
-      cancel_url: `${baseUrl}/admin?customOrderCanceled=1&co=${encodeURIComponent(displayId)}`,
+      success_url: `${baseUrl}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/shop?customOrderCanceled=1&co=${encodeURIComponent(displayId)}`,
       metadata: {
         customOrderId: order.id,
         customOrderDisplayId: displayId,

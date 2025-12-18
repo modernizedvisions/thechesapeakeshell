@@ -697,6 +697,9 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   if (!names.includes('stripe_payment_intent_id')) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_payment_intent_id TEXT;`).run();
   }
+  if (!names.includes('paid_at')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN paid_at TEXT;`).run();
+  }
   const shippingCols = [
     'shipping_name',
     'shipping_line1',
@@ -839,6 +842,7 @@ async function handleCustomOrderPayment(args: {
        SET status = 'paid',
            stripe_payment_intent_id = ?,
            stripe_session_id = COALESCE(stripe_session_id, ?),
+           paid_at = COALESCE(paid_at, ?),
            shipping_name = ?,
            shipping_line1 = ?,
            shipping_line2 = ?,
@@ -852,6 +856,7 @@ async function handleCustomOrderPayment(args: {
     .bind(
       paymentIntentId,
       session.id,
+      new Date().toISOString(),
       shippingName,
       shippingAddress?.line1 || null,
       shippingAddress?.line2 || null,
