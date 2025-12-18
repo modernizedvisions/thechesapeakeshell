@@ -830,10 +830,16 @@ async function handleCustomOrderPayment(args: {
   const totalCents = session.amount_total ?? amount + shippingCents;
   const description = customOrder.description || 'Custom order payment';
   const shippingPhone =
-    (shippingDetails as any)?.phone ||
     session.customer_details?.phone ||
-    paymentIntent?.shipping?.phone ||
+    (paymentIntent?.shipping as any)?.phone ||
     null;
+
+  console.log('[custom order] processing checkout.session.completed', {
+    sessionId: session.id,
+    paymentIntentId,
+    customOrderId,
+    displayId,
+  });
 
   // Update custom order status and stripe ids
   const update = await db

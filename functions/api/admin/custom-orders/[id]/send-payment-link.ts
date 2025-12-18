@@ -236,6 +236,7 @@ async function ensureCustomOrdersSchema(db: D1Database) {
     payment_link TEXT,
     stripe_session_id TEXT,
     stripe_payment_intent_id TEXT,
+    paid_at TEXT,
     shipping_name TEXT,
     shipping_line1 TEXT,
     shipping_line2 TEXT,
@@ -262,6 +263,9 @@ async function ensureCustomOrdersSchema(db: D1Database) {
   }
   if (!names.includes('stripe_payment_intent_id')) {
     await db.prepare(`ALTER TABLE custom_orders ADD COLUMN stripe_payment_intent_id TEXT;`).run();
+  }
+  if (!names.includes('paid_at')) {
+    await db.prepare(`ALTER TABLE custom_orders ADD COLUMN paid_at TEXT;`).run();
   }
   const shippingColumns = [
     'shipping_name',
