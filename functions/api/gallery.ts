@@ -47,6 +47,7 @@ export async function onRequestGet(context: { env: { DB?: D1Database }; request:
       .prepare(
         `SELECT id, url, image_url, alt_text, hidden, is_active, sort_order, position, created_at
          FROM gallery_images
+         WHERE hidden = 0 OR hidden IS NULL
          ORDER BY sort_order ASC, created_at ASC;`
       )
       .all<GalleryRow>();
@@ -86,8 +87,12 @@ export async function onRequestPut(context: { env: { DB?: D1Database }; request:
       return json({ error: 'invalid_json_payload' }, 400);
     }
 
-    const images = Array.isArray(body?.images) ? body.images : [];
-    console.log('[api/gallery] payload keys', Object.keys(body || {}), 'count', images.length);
+    if (!Array.isArray(body?.images)) {
+      return json({ error: 'invalid_payload', detail: 'images must be an array' }, 400);
+    }
+
+    const images = body.images;
+    console.log('[api/gallery] payload keys', Object.keys(body || {}), 'count', images.length, 'method', context.request.method);
 
     const normalized = images
       .map((img: any, idx: number) => {
@@ -111,13 +116,10 @@ export async function onRequestPut(context: { env: { DB?: D1Database }; request:
       createdAt: string;
     }[];
 
-    await db.prepare('BEGIN TRANSACTION;').run();
-    await db.prepare(`DELETE FROM gallery_images;`).run();
-
-    for (let i = 0; i < normalized.length; i++) {
-      const img = normalized[i];
-      try {
-        await db
+    const statements = [
+      db.prepare(`DELETE FROM gallery_images;`),
+      ...normalized.map((img) =>
+        db
           .prepare(
             `INSERT INTO gallery_images (id, url, image_url, alt_text, hidden, is_active, sort_order, position, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`
@@ -133,19 +135,48 @@ export async function onRequestPut(context: { env: { DB?: D1Database }; request:
             img.sortOrder,
             img.createdAt
           )
-          .run();
-      } catch (err) {
-        console.error('[api/gallery] insert failed', {
-          message: (err as any)?.message,
-          idx: i,
-          id: img.id,
-        });
-        await db.prepare('ROLLBACK;').run();
-        throw err;
+      ),
+    ];
+
+    try {
+      await db.batch(statements);
+    } catch (err) {
+      console.error('[api/gallery] batch insert failed', {
+        message: (err as any)?.message,
+        stack: (err as any)?.stack,
+      });
+      // Fallback to sequential if batch fails
+      await db.prepare(`DELETE FROM gallery_images;`).run();
+      for (let i = 0; i < normalized.length; i++) {
+        const img = normalized[i];
+        try {
+          await db
+            .prepare(
+              `INSERT INTO gallery_images (id, url, image_url, alt_text, hidden, is_active, sort_order, position, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`
+            )
+            .bind(
+              img.id,
+              img.url,
+              img.url,
+              img.alt,
+              img.hidden ? 1 : 0,
+              img.hidden ? 0 : 1,
+              img.sortOrder,
+              img.sortOrder,
+              img.createdAt
+            )
+            .run();
+        } catch (insertErr) {
+          console.error('[api/gallery] insert failed', {
+            message: (insertErr as any)?.message,
+            idx: i,
+            id: img.id,
+          });
+          throw insertErr;
+        }
       }
     }
-
-    await db.prepare('COMMIT;').run();
 
     const refreshed = await db
       .prepare(
@@ -156,9 +187,15 @@ export async function onRequestPut(context: { env: { DB?: D1Database }; request:
       .all<GalleryRow>();
 
     const savedImages = (refreshed.results || []).map((row) => mapRowToImage(row, schemaInfo)).filter(Boolean);
-    console.log('[api/gallery] saved', { count: savedImages.length });
+    const countRow = await db.prepare(`SELECT COUNT(*) as c FROM gallery_images;`).first<{ c: number }>();
+    console.log('[api/gallery] saved', {
+      count: savedImages.length,
+      storedCount: countRow?.c ?? null,
+      method: context.request.method,
+      firstUrl: savedImages[0]?.imageUrl || null,
+    });
 
-    return new Response(JSON.stringify({ images: savedImages }), {
+    return new Response(JSON.stringify({ ok: true, count: savedImages.length, images: savedImages }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
