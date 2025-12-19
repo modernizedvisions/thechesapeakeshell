@@ -5,12 +5,13 @@ import {
   renderOrderConfirmationEmailText,
   type OrderConfirmationEmailItem,
 } from '../../_lib/orderConfirmationEmail';
+import { renderOwnerInvoicePaidEmail, type EmailItem } from '../../_lib/emailTemplates';
 import {
-  renderOwnerCustomOrderPaidEmail,
-  renderOwnerInvoicePaidEmail,
-  renderOwnerNewOrderEmail,
-  type EmailItem,
-} from '../../_lib/emailTemplates';
+  formatMoney,
+  renderOwnerNewSaleEmailHtml,
+  renderOwnerNewSaleEmailText,
+  type OwnerNewSaleItem,
+} from '../../_lib/ownerNewSaleEmail';
 import { calculateShippingCents } from '../../_lib/shipping';
 
 type D1PreparedStatement = {
@@ -347,31 +348,67 @@ export const onRequestPost = async (context: {
       }
 
       if (insertResult && !invoiceId && !customOrderId && !customSource) {
-        const emailItems = mapLineItemsToEmailItems(session.line_items?.data || [], session.currency || 'usd');
         const orderLabel = insertResult.displayOrderId || insertResult.orderId;
-        const emailPayload = renderOwnerNewOrderEmail({
-          orderLabel,
-          customerName: shippingName || session.customer_details?.name || null,
-          customerEmail: customerEmail || null,
-          shippingAddress: shippingAddress,
-          items: emailItems,
-          amounts: {
-            subtotalCents: session.amount_subtotal ?? 0,
-            shippingCents,
-            totalCents: session.amount_total ?? 0,
-            currency: session.currency || 'usd',
-          },
-          createdAtIso: new Date().toISOString(),
-          adminUrl: siteUrl ? `${siteUrl}/admin` : undefined,
-        });
+        const confirmationItems: OwnerNewSaleItem[] = mapLineItemsToEmailItems(
+          session.line_items?.data || [],
+          session.currency || 'usd'
+        ).map((item) => ({
+          name: item.name,
+          qtyLabel: item.quantity > 1 ? `x${item.quantity}` : '',
+          lineTotal: formatMoney(item.amountCents),
+          imageUrl: item.imageUrl || undefined,
+        }));
+
+        const totals = {
+          subtotal: formatMoney(session.amount_subtotal ?? 0),
+          shipping: formatMoney(shippingCents),
+          total: formatMoney(session.amount_total ?? 0),
+        };
+        const adminUrl = siteUrl ? `${siteUrl}/admin` : '/admin';
+        const stripeUrl = buildStripeDashboardUrl(paymentIntentId, session.id, env.STRIPE_SECRET_KEY);
+        const shippingLines = formatShippingAddressLines(shippingAddress);
+        const orderDate = formatOrderDate(new Date());
 
         try {
+          const html = renderOwnerNewSaleEmailHtml({
+            orderNumber: orderLabel,
+            orderDate,
+            orderTypeLabel: 'Shop Order',
+            statusLabel: 'PAID',
+            customerName: shippingName || session.customer_details?.name || 'Customer',
+            customerEmail: customerEmail || '',
+            shippingAddressLine1: shippingLines.line1,
+            shippingAddressLine2: shippingLines.line2,
+            items: confirmationItems,
+            subtotal: totals.subtotal,
+            shipping: totals.shipping,
+            total: totals.total,
+            adminUrl,
+            stripeUrl,
+          });
+          const text = renderOwnerNewSaleEmailText({
+            orderNumber: orderLabel,
+            orderDate,
+            orderTypeLabel: 'Shop Order',
+            statusLabel: 'PAID',
+            customerName: shippingName || session.customer_details?.name || 'Customer',
+            customerEmail: customerEmail || '',
+            shippingAddressLine1: shippingLines.line1,
+            shippingAddressLine2: shippingLines.line2,
+            items: confirmationItems,
+            subtotal: totals.subtotal,
+            shipping: totals.shipping,
+            total: totals.total,
+            adminUrl,
+            stripeUrl,
+          });
+
           const emailResult = await sendEmail(
             {
               to: ownerTo,
-              subject: emailPayload.subject,
-              html: emailPayload.html,
-              text: emailPayload.text,
+              subject: `NEW SALE — The Chesapeake Shell (${orderLabel})`,
+              html,
+              text,
             },
             env
           );
@@ -1055,50 +1092,64 @@ async function handleCustomOrderPayment(args: {
 
   if (!insertResult) return;
 
-  const totalLabel = formatAmount(totalCents, session.currency || 'usd');
   const adminLink = (env.PUBLIC_SITE_URL || env.VITE_PUBLIC_SITE_URL || '').replace(/\/+$/, '') + '/admin';
-
-  const emailItems: EmailItem[] = [
+  const ownerItems: OwnerNewSaleItem[] = [
     {
       name: customOrder.description || 'Custom order',
-      quantity: 1,
-      amountCents: amount,
+      qtyLabel: '',
+      lineTotal: formatMoney(amount),
       imageUrl: null,
     },
   ];
-  if (shippingCents) {
-    emailItems.push({
-      name: 'Shipping',
-      quantity: 1,
-      amountCents: shippingCents,
-      imageUrl: null,
-    });
-  }
-
-  const emailPayload = renderOwnerCustomOrderPaidEmail({
-    orderLabel,
-    customerName: customOrder.customer_name || null,
-    customerEmail: customerEmail || customOrder.customer_email || null,
-    shippingAddress,
-    items: emailItems,
-    amounts: {
-      subtotalCents: amount,
-      shippingCents,
-      totalCents,
-      currency: session.currency || 'usd',
-    },
-    createdAtIso: new Date().toISOString(),
-    adminUrl: adminLink || undefined,
-    description: customOrder.description || 'Custom order payment',
-  });
+  const ownerTotals = {
+    subtotal: formatMoney(amount),
+    shipping: formatMoney(shippingCents),
+    total: formatMoney(totalCents),
+  };
+  const shippingLines = formatShippingAddressLines(shippingAddress);
+  const orderDate = formatOrderDate(new Date());
+  const stripeUrl = buildStripeDashboardUrl(paymentIntentId, session.id, env.STRIPE_SECRET_KEY);
 
   try {
+    const html = renderOwnerNewSaleEmailHtml({
+      orderNumber: orderLabel,
+      orderDate,
+      orderTypeLabel: 'Custom Order',
+      statusLabel: 'PAID',
+      customerName: customOrder.customer_name || shippingName || session.customer_details?.name || 'Customer',
+      customerEmail: customerEmail || customOrder.customer_email || '',
+      shippingAddressLine1: shippingLines.line1,
+      shippingAddressLine2: shippingLines.line2,
+      items: ownerItems,
+      subtotal: ownerTotals.subtotal,
+      shipping: ownerTotals.shipping,
+      total: ownerTotals.total,
+      adminUrl: adminLink || '/admin',
+      stripeUrl,
+    });
+    const text = renderOwnerNewSaleEmailText({
+      orderNumber: orderLabel,
+      orderDate,
+      orderTypeLabel: 'Custom Order',
+      statusLabel: 'PAID',
+      customerName: customOrder.customer_name || shippingName || session.customer_details?.name || 'Customer',
+      customerEmail: customerEmail || customOrder.customer_email || '',
+      shippingAddressLine1: shippingLines.line1,
+      shippingAddressLine2: shippingLines.line2,
+      items: ownerItems,
+      subtotal: ownerTotals.subtotal,
+      shipping: ownerTotals.shipping,
+      total: ownerTotals.total,
+      adminUrl: adminLink || '/admin',
+      stripeUrl,
+    });
+
     const emailResult = await sendEmail(
       {
         to: ownerTo,
-        subject: emailPayload.subject,
-        html: emailPayload.html,
-        text: emailPayload.text,
+        subject: `NEW SALE — The Chesapeake Shell (${orderLabel})`,
+        html,
+        text,
       },
       env
     );
@@ -1335,4 +1386,35 @@ function resolveSiteUrl(env: {
 }) {
   const raw = env.PUBLIC_SITE_URL || env.VITE_PUBLIC_SITE_URL || '';
   return raw ? raw.replace(/\/+$/, '') : '';
+}
+
+function formatShippingAddressLines(address: Stripe.Address | Stripe.ShippingAddress | null): {
+  line1: string;
+  line2: string;
+} {
+  if (!address) return { line1: '', line2: '' };
+  const line1Parts = [address.name, address.line1].filter(Boolean).map((p) => (p || '').trim());
+  const line2Parts = [
+    address.line2,
+    [address.city, address.state].filter(Boolean).join(', '),
+    address.postal_code,
+    address.country,
+  ]
+    .filter(Boolean)
+    .map((p) => (p || '').trim());
+  return {
+    line1: line1Parts.join(' - '),
+    line2: line2Parts.join(', '),
+  };
+}
+
+function buildStripeDashboardUrl(
+  paymentIntentId: string | null,
+  sessionId: string,
+  stripeSecret?: string
+): string {
+  const isTest = stripeSecret ? stripeSecret.startsWith('sk_test') : false;
+  const base = isTest ? 'https://dashboard.stripe.com/test' : 'https://dashboard.stripe.com';
+  if (paymentIntentId) return `${base}/payments/${paymentIntentId}`;
+  return `${base}/checkout/sessions/${sessionId}`;
 }

@@ -1,5 +1,5 @@
 import { resolveFromEmail, sendEmail, type EmailEnv } from '../../_lib/email';
-import { renderOwnerNewOrderEmail } from '../../_lib/emailTemplates';
+import { renderOwnerNewSaleEmailHtml, renderOwnerNewSaleEmailText } from '../../_lib/ownerNewSaleEmail';
 
 type TestBody = {
   to?: string;
@@ -28,38 +28,52 @@ export async function onRequestPost(context: { request: Request; env: EmailEnv }
     );
   }
 
-  const template = renderOwnerNewOrderEmail({
-    orderLabel: '25-123',
+  const adminUrl = (env.PUBLIC_SITE_URL || env.VITE_PUBLIC_SITE_URL || '').replace(/\/+$/, '') + '/admin';
+  const html = renderOwnerNewSaleEmailHtml({
+    orderNumber: '25-123',
+    orderDate: new Date().toISOString(),
+    orderTypeLabel: 'Shop Order',
+    statusLabel: 'PAID',
     customerName: 'Sample Customer',
     customerEmail: 'customer@example.com',
-    shippingAddress: {
-      line1: '123 Bay St',
-      city: 'Chesapeake',
-      state: 'VA',
-      postal_code: '23320',
-      country: 'US',
-      name: 'Sample Customer',
-    } as any,
+    shippingAddressLine1: '123 Bay St',
+    shippingAddressLine2: 'Chesapeake, VA 23320, US',
     items: [
-      { name: 'Ornament Shell', quantity: 1, amountCents: 4500, imageUrl: 'https://placehold.co/56x56' },
-      { name: 'Ring Dish', quantity: 2, amountCents: 6400, imageUrl: null },
+      { name: 'Ornament Shell', qtyLabel: 'x1', lineTotal: '$45.00', imageUrl: 'https://placehold.co/56x56' },
+      { name: 'Ring Dish', qtyLabel: 'x2', lineTotal: '$64.00', imageUrl: null },
     ],
-    amounts: {
-      subtotalCents: 10900,
-      shippingCents: 500,
-      totalCents: 11400,
-      currency: 'usd',
-    },
-    createdAtIso: new Date().toISOString(),
-    adminUrl: (env.PUBLIC_SITE_URL || env.VITE_PUBLIC_SITE_URL || '').replace(/\/+$/, '') + '/admin',
+    subtotal: '$109.00',
+    shipping: '$5.00',
+    total: '$114.00',
+    adminUrl,
+    stripeUrl: 'https://dashboard.stripe.com/test/payments/pi_sample',
+  });
+  const text = renderOwnerNewSaleEmailText({
+    orderNumber: '25-123',
+    orderDate: new Date().toISOString(),
+    orderTypeLabel: 'Shop Order',
+    statusLabel: 'PAID',
+    customerName: 'Sample Customer',
+    customerEmail: 'customer@example.com',
+    shippingAddressLine1: '123 Bay St',
+    shippingAddressLine2: 'Chesapeake, VA 23320, US',
+    items: [
+      { name: 'Ornament Shell', qtyLabel: 'x1', lineTotal: '$45.00', imageUrl: 'https://placehold.co/56x56' },
+      { name: 'Ring Dish', qtyLabel: 'x2', lineTotal: '$64.00', imageUrl: null },
+    ],
+    subtotal: '$109.00',
+    shipping: '$5.00',
+    total: '$114.00',
+    adminUrl,
+    stripeUrl: 'https://dashboard.stripe.com/test/payments/pi_sample',
   });
 
   const result = await sendEmail(
     {
       to,
-      subject: template.subject,
-      text: template.text,
-      html: template.html,
+      subject: 'NEW SALE — The Chesapeake Shell (TEST)',
+      text,
+      html,
     },
     env
   );
