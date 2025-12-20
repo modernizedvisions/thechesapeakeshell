@@ -1,7 +1,7 @@
 type Env = {
-  CF_ACCOUNT_ID?: string;
-  CF_IMAGES_API_TOKEN?: string;
-  CF_IMAGES_VARIANT?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_IMAGES_API_TOKEN?: string;
+  CLOUDFLARE_IMAGES_VARIANT?: string;
 };
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
@@ -12,6 +12,36 @@ const json = (data: unknown, status = 200) =>
     status,
     headers: { 'content-type': 'application/json' },
   });
+
+const getProcessEnv = (key: string): string | undefined => {
+  try {
+    const proc = (globalThis as any)?.process;
+    const env = proc?.env;
+    if (!env) return undefined;
+    const value = env[key];
+    return typeof value === 'string' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveImagesEnv = (env: Env) => {
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID || getProcessEnv('CLOUDFLARE_ACCOUNT_ID');
+  const apiToken = env.CLOUDFLARE_IMAGES_API_TOKEN || getProcessEnv('CLOUDFLARE_IMAGES_API_TOKEN');
+  const variant =
+    env.CLOUDFLARE_IMAGES_VARIANT ||
+    getProcessEnv('CLOUDFLARE_IMAGES_VARIANT') ||
+    undefined;
+
+  const missing: string[] = [];
+  if (!accountId) missing.push('CLOUDFLARE_ACCOUNT_ID');
+  if (!apiToken) missing.push('CLOUDFLARE_IMAGES_API_TOKEN');
+  return { accountId, apiToken, variant, missing };
+};
+
+export async function onRequestGet(): Promise<Response> {
+  return json({ error: 'Method not allowed. Use POST.' }, 405);
+}
 
 export async function onRequestPost(context: { request: Request; env: Env }): Promise<Response> {
   const { request, env } = context;
@@ -26,8 +56,9 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
   });
 
   try {
-    if (!env.CF_ACCOUNT_ID || !env.CF_IMAGES_API_TOKEN) {
-      return json({ error: 'Missing Cloudflare Images configuration' }, 500);
+    const { accountId, apiToken, variant, missing } = resolveImagesEnv(env);
+    if (missing.length) {
+      return json({ error: 'Missing Cloudflare Images configuration', details: missing }, 500);
     }
 
     if (!contentType.toLowerCase().includes('multipart/form-data')) {
@@ -77,11 +108,11 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     let response: Response;
     try {
       response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/images/v1`,
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v1`,
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${env.CF_IMAGES_API_TOKEN}`,
+            Authorization: `Bearer ${apiToken}`,
           },
           body: uploadForm,
         }
@@ -115,8 +146,8 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       : [];
     let url = '';
 
-    if (env.CF_IMAGES_VARIANT) {
-      url = variants.find((v: string) => v.endsWith(`/${env.CF_IMAGES_VARIANT}`)) || '';
+    if (variant) {
+      url = variants.find((v: string) => v.endsWith(`/${variant}`)) || '';
     }
     if (!url && variants.length) {
       url = variants[0];
