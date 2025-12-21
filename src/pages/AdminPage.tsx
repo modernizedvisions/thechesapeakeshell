@@ -45,7 +45,7 @@ export type ProductFormState = {
   stripeProductId?: string;
 };
 
-export type ManagedImage = {
+export type ShopImage = {
   id: string;
   url: string;
   file?: File;
@@ -54,7 +54,11 @@ export type ManagedImage = {
   uploading?: boolean;
   uploadError?: string;
   cloudflareId?: string;
+  previewUrl?: string;
+  needsMigration?: boolean;
 };
+
+export type ManagedImage = ShopImage;
 
 const normalizeCategoryValue = (value: string | undefined | null) => (value || '').trim();
 
@@ -323,6 +327,7 @@ export function AdminPage() {
                 file: undefined,
                 uploading: false,
                 uploadError: undefined,
+                previewUrl: undefined,
               }
             : img
         )
@@ -368,6 +373,7 @@ export function AdminPage() {
           const newEntry: ManagedImage = {
             id,
             url: previewUrl,
+            previewUrl,
             file,
             isPrimary: false,
             isNew: true,
@@ -386,6 +392,7 @@ export function AdminPage() {
           return {
             id,
             url: previewUrl,
+            previewUrl,
             file,
             isPrimary: false,
             isNew: true,
@@ -487,6 +494,7 @@ export function AdminPage() {
       url,
       isPrimary: idx === 0,
       isNew: false,
+      needsMigration: isBase64ImageUrl(url),
     }));
     setEditProductImages(managed);
   };
@@ -499,32 +507,43 @@ export function AdminPage() {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.debug('[shop save] clicked', {
+      mode: 'new',
+      name: productForm.name,
+      price: productForm.price,
+      qty: productForm.quantityAvailable,
+      categoryCount: productForm.category ? 1 : 0,
+      imageCount: productImages.length,
+      imageKinds: describeImageKinds(productImages),
+    });
     setProductSaveState('saving');
     setProductStatus({ type: null, message: '' });
 
     try {
       if (hasPendingUploads(productImages)) {
+        console.debug('[shop save] blocked', { reason: 'images-uploading' });
         setProductStatus({ type: 'error', message: 'Images are still uploading. Please wait.' });
         setProductSaveState('error');
         setTimeout(() => setProductSaveState('idle'), 1500);
         return;
       }
       if (hasUploadErrors(productImages)) {
+        console.debug('[shop save] blocked', { reason: 'image-upload-error' });
         setProductStatus({ type: 'error', message: 'One or more images failed to upload.' });
         setProductSaveState('error');
         setTimeout(() => setProductSaveState('idle'), 1500);
         return;
       }
 
-      const hasAtLeastOneImage = Array.isArray(productImages) && productImages.length > 0;
-      if (!hasAtLeastOneImage) {
-        setProductStatus({ type: 'error', message: 'Add an image to save a product.' });
-        setProductSaveState('error');
-        setTimeout(() => setProductSaveState('idle'), 1500);
-        return;
-      }
-
       const manualUrls = mergeManualImages(productForm);
+      const base64Urls = findBase64Urls([...manualUrls.imageUrls, ...productImages.map((img) => img.url)]);
+      const needsMigration = productImages.some((img) => img.needsMigration);
+      if (needsMigration || base64Urls.length > 0) {
+        console.error('[shop save] blocked: base64 detected. Re-upload images using Cloudflare upload.', {
+          base64Count: base64Urls.length,
+        });
+        throw new Error('Base64 images cannot be saved. Upload images first.');
+      }
       const uploaded = await resolveImageUrls(productImages);
       const mergedImages = mergeImages(uploaded, manualUrls);
 
@@ -533,6 +552,13 @@ export function AdminPage() {
         imageUrl: mergedImages.imageUrl,
         imageUrls: mergedImages.imageUrls,
       };
+
+      const payloadBytes = new Blob([JSON.stringify(payload)]).size;
+      console.debug('[shop save] request', { url: '/api/admin/products', method: 'POST', bytes: payloadBytes });
+      if (payloadBytes > 900 * 1024) {
+        console.warn('[shop save] blocked: payload too large', { bytes: payloadBytes });
+        throw new Error('Payload too large (likely base64).');
+      }
 
       const created = await adminCreateProduct(payload);
       if (created) {
@@ -557,17 +583,28 @@ export function AdminPage() {
   const handleUpdateProduct = async (e: React.FormEvent): Promise<boolean> => {
     e.preventDefault();
     if (!editProductId || !editProductForm) return false;
+    console.debug('[shop save] clicked', {
+      mode: 'edit',
+      name: editProductForm.name,
+      price: editProductForm.price,
+      qty: editProductForm.quantityAvailable,
+      categoryCount: editProductForm.category ? 1 : 0,
+      imageCount: editProductImages.length,
+      imageKinds: describeImageKinds(editProductImages),
+    });
     setEditProductSaveState('saving');
     setProductStatus({ type: null, message: '' });
 
     try {
       if (hasPendingUploads(editProductImages)) {
+        console.debug('[shop save] blocked', { reason: 'images-uploading' });
         setProductStatus({ type: 'error', message: 'Images are still uploading. Please wait.' });
         setEditProductSaveState('error');
         setTimeout(() => setEditProductSaveState('idle'), 1500);
         return false;
       }
       if (hasUploadErrors(editProductImages)) {
+        console.debug('[shop save] blocked', { reason: 'image-upload-error' });
         setProductStatus({ type: 'error', message: 'One or more images failed to upload.' });
         setEditProductSaveState('error');
         setTimeout(() => setEditProductSaveState('idle'), 1500);
@@ -575,6 +612,14 @@ export function AdminPage() {
       }
 
       const manualUrls = mergeManualImages(editProductForm);
+      const base64Urls = findBase64Urls([...manualUrls.imageUrls, ...editProductImages.map((img) => img.url)]);
+      const needsMigration = editProductImages.some((img) => img.needsMigration);
+      if (needsMigration || base64Urls.length > 0) {
+        console.error('[shop save] blocked: base64 detected. Re-upload images using Cloudflare upload.', {
+          base64Count: base64Urls.length,
+        });
+        throw new Error('Base64 images cannot be saved. Upload images first.');
+      }
       const uploaded = editProductImages.length > 0 ? await resolveImageUrls(editProductImages) : manualUrls;
       const mergedImages = mergeImages(uploaded, manualUrls);
 
@@ -583,6 +628,13 @@ export function AdminPage() {
         imageUrl: mergedImages.imageUrl,
         imageUrls: mergedImages.imageUrls,
       };
+
+      const payloadBytes = new Blob([JSON.stringify(payload)]).size;
+      console.debug('[shop save] request', { url: `/api/admin/products/${editProductId}`, method: 'PUT', bytes: payloadBytes });
+      if (payloadBytes > 900 * 1024) {
+        console.warn('[shop save] blocked: payload too large', { bytes: payloadBytes });
+        throw new Error('Payload too large (likely base64).');
+      }
 
       const updated = await adminUpdateProduct(editProductId, payload);
       if (updated) {
@@ -977,4 +1029,22 @@ function mergeImages(
     merged.unshift(imageUrl);
   }
   return { imageUrl, imageUrls: merged };
+}
+
+function isBase64ImageUrl(value?: string) {
+  if (!value) return false;
+  return value.startsWith('data:image/') || value.includes(';base64,');
+}
+
+function describeImageKinds(images: ManagedImage[]) {
+  return images.map((img) => ({
+    isDataUrl: isBase64ImageUrl(img.url),
+    urlPrefix: typeof img.url === 'string' ? img.url.slice(0, 30) : null,
+    previewPrefix: img.previewUrl ? img.previewUrl.slice(0, 30) : null,
+    needsMigration: !!img.needsMigration,
+  }));
+}
+
+function findBase64Urls(urls: string[]) {
+  return urls.filter((url) => isBase64ImageUrl(url));
 }

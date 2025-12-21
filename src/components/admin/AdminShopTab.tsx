@@ -497,7 +497,7 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
                           productImageFileInputRef.current?.click();
                         }}
                       >
-                        <img src={image.url} alt={`Product image ${index + 1}`} className="h-full w-full object-cover" />
+                        <img src={image.previewUrl ?? image.url} alt={`Product image ${index + 1}`} className="h-full w-full object-cover" />
                         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/40 px-2 py-1 text-xs text-white">
                           <button
                             type="button"
@@ -760,7 +760,7 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
                     if (image) {
                       return (
                         <div key={image.id} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-                          <img src={image.url} alt={`Edit image ${idx + 1}`} className="h-full w-full object-cover" />
+                          <img src={image.previewUrl ?? image.url} alt={`Edit image ${idx + 1}`} className="h-full w-full object-cover" />
                           <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/40 px-2 py-1 text-xs text-white">
                             <button
                               type="button"
@@ -882,7 +882,7 @@ function ManagedImagesList({
       {images.map((img, idx) => (
         <div key={img.id} className="border border-gray-200 rounded-lg overflow-hidden">
           <div className="aspect-square bg-gray-100 overflow-hidden">
-            <img src={img.url} alt={`upload-${idx}`} className="w-full h-full object-cover" />
+            <img src={img.previewUrl ?? img.url} alt={`upload-${idx}`} className="w-full h-full object-cover" />
           </div>
           <div className="p-2 space-y-1">
             <div className="flex items-center justify-between text-xs">
