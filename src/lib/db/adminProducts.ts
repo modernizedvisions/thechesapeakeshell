@@ -26,21 +26,21 @@ export type AdminProductUpdateInput = Partial<AdminProductInput>;
 const ADMIN_PRODUCTS_PATH = '/api/admin/products';
 
 const handleResponse = async (response: Response) => {
-  if (!response.ok) {
-    const message = await safeMessage(response);
-    throw new Error(message || `Request failed with status ${response.status}`);
-  }
-  return response.json();
-};
-
-const safeMessage = async (response: Response): Promise<string | null> => {
+  const text = await response.text();
+  let data: any = null;
   try {
-    const data = await response.json();
-    if (data?.error) return data.error;
-    return null;
+    data = text ? JSON.parse(text) : null;
   } catch {
-    return null;
+    data = null;
   }
+
+  if (!response.ok) {
+    const message = data?.error || data?.detail || text || `Request failed with status ${response.status}`;
+    const trimmed = typeof message === 'string' && message.length > 500 ? `${message.slice(0, 500)}...` : message;
+    throw new Error(typeof trimmed === 'string' ? trimmed : `Request failed with status ${response.status}`);
+  }
+
+  return data ?? {};
 };
 
 export async function fetchAdminProducts(): Promise<Product[]> {

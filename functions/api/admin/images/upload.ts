@@ -1,7 +1,6 @@
 type Env = {
-  CLOUDFLARE_ACCOUNT_ID?: string;
-  CLOUDFLARE_IMAGES_API_TOKEN?: string;
-  CLOUDFLARE_IMAGES_VARIANT?: string;
+  IMAGES_BUCKET?: R2Bucket;
+  PUBLIC_IMAGES_BASE_URL?: string;
 };
 
 const BUILD_FINGERPRINT = 'upload-fingerprint-2025-12-21-a';
@@ -25,34 +24,17 @@ const withFingerprint = <T extends Record<string, unknown>>(data: T) => ({
   fingerprint: BUILD_FINGERPRINT,
 });
 
-const getProcessEnv = (key: string): string | undefined => {
-  try {
-    const proc = (globalThis as any)?.process;
-    const env = proc?.env;
-    if (!env) return undefined;
-    const value = env[key];
-    return typeof value === 'string' ? value : undefined;
-  } catch {
-    return undefined;
+const extensionForMime = (mime: string) => {
+  switch (mime) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    default:
+      return 'bin';
   }
-};
-
-const resolveImagesEnv = (env: Env) => {
-  const hasContextEnv = Boolean(
-    env.CLOUDFLARE_ACCOUNT_ID || env.CLOUDFLARE_IMAGES_API_TOKEN || env.CLOUDFLARE_IMAGES_VARIANT
-  );
-  const accountId = hasContextEnv
-    ? env.CLOUDFLARE_ACCOUNT_ID
-    : getProcessEnv('CLOUDFLARE_ACCOUNT_ID');
-  const apiToken = hasContextEnv
-    ? env.CLOUDFLARE_IMAGES_API_TOKEN
-    : getProcessEnv('CLOUDFLARE_IMAGES_API_TOKEN');
-  const variant = hasContextEnv ? env.CLOUDFLARE_IMAGES_VARIANT : getProcessEnv('CLOUDFLARE_IMAGES_VARIANT');
-
-  const missing: string[] = [];
-  if (!accountId) missing.push('CLOUDFLARE_ACCOUNT_ID');
-  if (!apiToken) missing.push('CLOUDFLARE_IMAGES_API_TOKEN');
-  return { accountId, apiToken, variant, missing };
 };
 
 export async function onRequestOptions(context: { request: Request }): Promise<Response> {
@@ -107,20 +89,13 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
   });
 
   try {
-    const { accountId, apiToken, variant, missing } = resolveImagesEnv(env);
-    if (missing.length) {
+    if (!env.IMAGES_BUCKET || !env.PUBLIC_IMAGES_BASE_URL) {
       return json(
         withFingerprint({
-          error: 'Missing Cloudflare Images configuration',
-          details: missing,
+          error: 'Missing R2 configuration',
           envPresent: {
-            CLOUDFLARE_ACCOUNT_ID: !!accountId,
-            CLOUDFLARE_IMAGES_API_TOKEN: !!apiToken,
-            CLOUDFLARE_IMAGES_VARIANT: !!variant,
-          },
-          envPreview: {
-            accountIdPrefix: accountId ? accountId.slice(0, 6) : null,
-            tokenPrefix: apiToken ? apiToken.slice(0, 6) : null,
+            IMAGES_BUCKET: !!env.IMAGES_BUCKET,
+            PUBLIC_IMAGES_BASE_URL: !!env.PUBLIC_IMAGES_BASE_URL,
           },
         }),
         500,
@@ -185,87 +160,33 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       size: file.size,
     });
 
-    const uploadForm = new FormData();
-    uploadForm.append('file', file, file.name || 'upload');
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const ext = extensionForMime(file.type);
+    const key = `chesapeake-shell/${year}/${month}/${crypto.randomUUID()}.${ext}`;
 
-    let response: Response;
     try {
-      response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v1`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-          },
-          body: uploadForm,
-        }
-      );
+      await env.IMAGES_BUCKET.put(key, file.stream(), {
+        httpMetadata: { contentType: file.type },
+        customMetadata: { originalName: file.name },
+      });
     } catch (err) {
-      console.error('[images/upload] Upload request failed', err);
+      console.error('[images/upload] R2 upload failed', err);
       return json(
-        withFingerprint({ error: 'Image upload failed', details: 'Network error' }),
+        withFingerprint({ error: 'Image upload failed', details: 'R2 upload error' }),
         500,
         corsHeaders(request)
       );
     }
 
-    const raw = await response.text();
-    let payload: any = null;
-    try {
-      payload = JSON.parse(raw);
-    } catch {
-      payload = null;
-    }
-
-    if (!response.ok || !payload?.success) {
-      console.error('[images/upload] Upload error', { status: response.status, raw });
-      const details =
-        payload?.errors?.[0]?.message ||
-        payload?.message ||
-        raw ||
-        `Cloudflare Images error (${response.status})`;
-      return json(
-        withFingerprint({
-          error: 'Image upload failed',
-          details: {
-            status: response.status,
-            body: raw,
-            message: details,
-          },
-        }),
-        500,
-        corsHeaders(request)
-      );
-    }
-
-    const result = payload.result || {};
-    const variants = Array.isArray(result.variants)
-      ? result.variants.filter((v: unknown) => typeof v === 'string')
-      : [];
-    let url = '';
-
-    if (variant) {
-      url = variants.find((v: string) => v.endsWith(`/${variant}`)) || '';
-    }
-    if (!url && variants.length) {
-      url = variants[0];
-    }
-
-    if (!result.id || !url) {
-      console.error('[images/upload] Missing delivery URL', { result });
-      return json(
-        withFingerprint({ error: 'Image upload succeeded but no delivery URL returned', details: raw }),
-        500,
-        corsHeaders(request)
-      );
-    }
+    const baseUrl = env.PUBLIC_IMAGES_BASE_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/${key}`;
 
     return json(
       withFingerprint({
-        id: result.id,
+        id: key,
         url,
-        width: typeof result.width === 'number' ? result.width : undefined,
-        height: typeof result.height === 'number' ? result.height : undefined,
       }),
       200,
       corsHeaders(request)

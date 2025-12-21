@@ -190,7 +190,32 @@ export async function onRequestGet(context: { env: { DB: D1Database }; request: 
 
 export async function onRequestPost(context: { env: { DB: D1Database; STRIPE_SECRET_KEY?: string }; request: Request }): Promise<Response> {
   try {
-    const body = (await context.request.json()) as Partial<NewProductInput>;
+    console.log('[products save] incoming', {
+      method: context.request.method,
+      url: context.request.url,
+      contentType: context.request.headers.get('content-type'),
+      contentLength: context.request.headers.get('content-length'),
+    });
+
+    let body: Partial<NewProductInput>;
+    try {
+      body = (await context.request.json()) as Partial<NewProductInput>;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      return new Response(JSON.stringify({ error: 'Invalid JSON', detail }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const imageUrls = Array.isArray(body.imageUrls) ? body.imageUrls : [];
+    console.log('[products save] payload summary', {
+      keys: Object.keys(body),
+      imageCount: imageUrls.length + (body.imageUrl ? 1 : 0),
+      imageUrlPrefix: body.imageUrl ? body.imageUrl.slice(0, 30) : null,
+      imageUrlsPreview: imageUrls.slice(0, 3).map((url) => (typeof url === 'string' ? url.slice(0, 30) : '')),
+    });
+
     const error = validateNewProduct(body);
     if (error) {
       return new Response(JSON.stringify({ error }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -204,6 +229,23 @@ export async function onRequestPost(context: { env: { DB: D1Database; STRIPE_SEC
     const category = sanitizeCategory(body.category);
 
     await ensureProductSchema(context.env.DB);
+    try {
+      const table = await context.env.DB.prepare(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='products';`
+      ).first<{ name: string }>();
+      if (!table?.name) {
+        return new Response(JSON.stringify({ error: 'Products table missing' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    } catch (dbError) {
+      const detail = dbError instanceof Error ? dbError.message : String(dbError);
+      return new Response(JSON.stringify({ error: 'DB schema check failed', detail }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const statement = context.env.DB.prepare(
       `
@@ -303,8 +345,9 @@ export async function onRequestPost(context: { env: { DB: D1Database; STRIPE_SEC
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error in POST /api/admin/products', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error('Error in POST /api/admin/products', { detail });
+    return new Response(JSON.stringify({ error: 'Internal server error', detail }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

@@ -152,6 +152,13 @@ export async function onRequestPut(context: {
   params: Record<string, string>;
 }): Promise<Response> {
   try {
+    console.log('[products save] incoming', {
+      method: context.request.method,
+      url: context.request.url,
+      contentType: context.request.headers.get('content-type'),
+      contentLength: context.request.headers.get('content-length'),
+    });
+
     const id = context.params?.id;
     if (!id) {
       return new Response(JSON.stringify({ error: 'Product id is required' }), {
@@ -160,7 +167,24 @@ export async function onRequestPut(context: {
       });
     }
 
-    const body = (await context.request.json()) as UpdateProductInput;
+    let body: UpdateProductInput;
+    try {
+      body = (await context.request.json()) as UpdateProductInput;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      return new Response(JSON.stringify({ error: 'Invalid JSON', detail }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const imageUrls = Array.isArray(body.imageUrls) ? body.imageUrls : [];
+    console.log('[products save] payload summary', {
+      keys: Object.keys(body),
+      imageCount: imageUrls.length + (body.imageUrl ? 1 : 0),
+      imageUrlPrefix: body.imageUrl ? body.imageUrl.slice(0, 30) : null,
+      imageUrlsPreview: imageUrls.slice(0, 3).map((url) => (typeof url === 'string' ? url.slice(0, 30) : '')),
+    });
     const validationError = validateUpdate(body);
     if (validationError) {
       return new Response(JSON.stringify({ error: validationError }), {
@@ -188,6 +212,23 @@ export async function onRequestPut(context: {
     const values: unknown[] = [];
 
     await ensureProductSchema(context.env.DB);
+    try {
+      const table = await context.env.DB.prepare(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='products';`
+      ).first<{ name: string }>();
+      if (!table?.name) {
+        return new Response(JSON.stringify({ error: 'Products table missing' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    } catch (dbError) {
+      const detail = dbError instanceof Error ? dbError.message : String(dbError);
+      return new Response(JSON.stringify({ error: 'DB schema check failed', detail }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const addSet = (clause: string, value: unknown) => {
       sets.push(clause);

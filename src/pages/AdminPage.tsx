@@ -565,10 +565,10 @@ export function AdminPage() {
       const base64Urls = findBase64Urls([...manualUrls.imageUrls, ...productImages.map((img) => img.url)]);
       const needsMigration = productImages.some((img) => img.needsMigration);
       if (needsMigration || base64Urls.length > 0) {
-        console.error('[shop save] blocked: base64 detected. Re-upload images using Cloudflare upload.', {
+        console.error('[shop save] blocked: invalid image URLs detected. Re-upload images using Cloudflare upload.', {
           base64Count: base64Urls.length,
         });
-        throw new Error('Base64 images cannot be saved. Upload images first.');
+        throw new Error('Images must be uploaded first (no blob/data URLs).');
       }
       const uploaded = await resolveImageUrls(productImages);
       const mergedImages = mergeImages(uploaded, manualUrls);
@@ -587,6 +587,10 @@ export function AdminPage() {
       }
 
       const created = await adminCreateProduct(payload);
+      console.debug('[shop save] success', {
+        mode: 'new',
+        productId: created?.id ?? null,
+      });
       if (created) {
         setProductStatus({ type: 'success', message: 'Product saved successfully.' });
         resetProductForm();
@@ -641,10 +645,10 @@ export function AdminPage() {
       const base64Urls = findBase64Urls([...manualUrls.imageUrls, ...editProductImages.map((img) => img.url)]);
       const needsMigration = editProductImages.some((img) => img.needsMigration);
       if (needsMigration || base64Urls.length > 0) {
-        console.error('[shop save] blocked: base64 detected. Re-upload images using Cloudflare upload.', {
+        console.error('[shop save] blocked: invalid image URLs detected. Re-upload images using Cloudflare upload.', {
           base64Count: base64Urls.length,
         });
-        throw new Error('Base64 images cannot be saved. Upload images first.');
+        throw new Error('Images must be uploaded first (no blob/data URLs).');
       }
       const uploaded = editProductImages.length > 0 ? await resolveImageUrls(editProductImages) : manualUrls;
       const mergedImages = mergeImages(uploaded, manualUrls);
@@ -663,6 +667,10 @@ export function AdminPage() {
       }
 
       const updated = await adminUpdateProduct(editProductId, payload);
+      console.debug('[shop save] success', {
+        mode: 'edit',
+        productId: updated?.id ?? null,
+      });
       if (updated) {
         setProductStatus({ type: 'success', message: 'Product updated.' });
         setEditProductId(null);
@@ -1057,14 +1065,14 @@ function mergeImages(
   return { imageUrl, imageUrls: merged };
 }
 
-function isBase64ImageUrl(value?: string) {
+function isBlockedImageUrl(value?: string) {
   if (!value) return false;
-  return value.startsWith('data:image/') || value.includes(';base64,');
+  return value.startsWith('data:image/') || value.includes(';base64,') || value.startsWith('blob:');
 }
 
 function describeImageKinds(images: ManagedImage[]) {
   return images.map((img) => ({
-    isDataUrl: isBase64ImageUrl(img.url),
+    isDataUrl: isBlockedImageUrl(img.url),
     urlPrefix: typeof img.url === 'string' ? img.url.slice(0, 30) : null,
     previewPrefix: img.previewUrl ? img.previewUrl.slice(0, 30) : null,
     needsMigration: !!img.needsMigration,
@@ -1072,5 +1080,5 @@ function describeImageKinds(images: ManagedImage[]) {
 }
 
 function findBase64Urls(urls: string[]) {
-  return urls.filter((url) => isBase64ImageUrl(url));
+  return urls.filter((url) => isBlockedImageUrl(url));
 }
