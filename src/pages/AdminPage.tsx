@@ -595,6 +595,18 @@ export function AdminPage() {
     return { imageUrl: primary, imageUrls: urls };
   };
 
+  const deriveImagePayload = (images: ManagedImage[]): { imageUrl: string; imageUrls: string[] } => {
+    const normalized = normalizeImageOrder(images);
+    const urls = normalized
+      .filter((img) => !img.uploading && !img.uploadError)
+      .map((img) => img.url)
+      .filter((url) => !!url && !url.startsWith('blob:') && !url.startsWith('data:'));
+    const unique = Array.from(new Set(urls));
+    const primary = unique[0] || '';
+    const rest = primary ? unique.filter((url) => url !== primary) : unique;
+    return { imageUrl: primary, imageUrls: rest };
+  };
+
   const hasPendingUploads = (images: ManagedImage[]) => images.some((img) => img.uploading);
   const hasUploadErrors = (images: ManagedImage[]) => images.some((img) => img.uploadError);
 
@@ -750,8 +762,7 @@ export function AdminPage() {
         return false;
       }
 
-      const manualUrls = mergeManualImages(editProductForm);
-      const base64Urls = findBase64Urls([...manualUrls.imageUrls, ...editProductImages.map((img) => img.url)]);
+      const base64Urls = findBase64Urls([...editProductImages.map((img) => img.url)]);
       const needsMigration = editProductImages.some((img) => img.needsMigration);
       if (needsMigration || base64Urls.length > 0) {
         console.error('[shop save] blocked: invalid image URLs detected. Re-upload images using Cloudflare upload.', {
@@ -759,12 +770,11 @@ export function AdminPage() {
         });
         throw new Error('Images must be uploaded first (no blob/data URLs).');
       }
-      const uploaded = editProductImages.length > 0 ? await resolveImageUrls(editProductImages) : manualUrls;
-      const mergedImages = mergeImages(uploaded, manualUrls);
+      const mergedImages = deriveImagePayload(editProductImages);
 
       const payload = {
         ...formStateToPayload(editProductForm),
-        imageUrl: mergedImages.imageUrl,
+        imageUrl: mergedImages.imageUrl || '',
         imageUrls: mergedImages.imageUrls,
       };
 

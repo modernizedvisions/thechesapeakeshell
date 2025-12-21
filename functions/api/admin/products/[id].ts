@@ -243,9 +243,13 @@ export async function onRequestPut(context: {
       const categoryValue = sanitizeCategory(body.category);
       addSet('category = ?', categoryValue || null);
     }
-    if (body.imageUrl !== undefined) addSet('image_url = ?', body.imageUrl);
-    if (body.imageUrls !== undefined)
-      addSet('image_urls_json = ?', body.imageUrls.length ? JSON.stringify(body.imageUrls) : null);
+    if (body.imageUrl !== undefined) {
+      const primary = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
+      addSet('image_url = ?', primary ? primary : null);
+    }
+    if (body.imageUrls !== undefined) {
+      addSet('image_urls_json = ?', JSON.stringify(body.imageUrls));
+    }
     if (body.quantityAvailable !== undefined) addSet('quantity_available = ?', body.quantityAvailable);
     if (body.isOneOff !== undefined) addSet('is_one_off = ?', body.isOneOff ? 1 : 0);
     if (body.isActive !== undefined) addSet('is_active = ?', body.isActive ? 1 : 0);
