@@ -3,6 +3,7 @@ import { CheckCircle, Loader2, Trash2 } from 'lucide-react';
 import type { Category, Product } from '../../lib/types';
 import type { ManagedImage, ProductFormState } from '../../pages/AdminPage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { adminFetchCategories } from '../../lib/api';
 import { AdminSectionHeader } from './AdminSectionHeader';
 import { CategoryManagementModal } from './CategoryManagementModal';
@@ -194,6 +195,8 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editImages, setEditImages] = useState<ManagedImage[]>([]);
   const [activeProductSlot, setActiveProductSlot] = useState<number | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -675,22 +678,9 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
       </div>
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent>
-          <DialogHeader className="flex flex-row items-start justify-between">
+        <DialogContent className="relative">
+          <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
-            {editProductId && (
-              <button
-                type="button"
-                onClick={async () => {
-                  await onDeleteProduct(editProductId);
-                  setIsEditModalOpen(false);
-                }}
-                className="text-slate-500 hover:text-red-600 transition-colors"
-                aria-label="Delete product"
-              >
-                <Trash2 className="h-5 w-5" />
-              </button>
-            )}
           </DialogHeader>
 
           <form
@@ -703,6 +693,32 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
             }}
             className="space-y-4"
           >
+            <div className="absolute right-3 top-3 flex items-center gap-2">
+              {editProductId && (
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                  className="text-slate-500 hover:text-red-600 transition-colors"
+                  aria-label="Delete product"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                CLOSE
+              </button>
+              <button
+                type="submit"
+                disabled={editProductSaveState === 'saving'}
+                className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {editProductSaveState === 'saving' ? 'Saving...' : 'Save'}
+              </button>
+            </div>
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
                 <div>
@@ -873,25 +889,35 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:border-slate-400"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={editProductSaveState === 'saving'}
-                className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
-              >
-                {editProductSaveState === 'saving' ? 'Saving...' : 'Save'}
-              </button>
-            </div>
           </form>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={isDeleteConfirmOpen}
+        title="Are you sure?"
+        description="This will permanently delete this product."
+        confirmText={isDeleting ? 'Deleting...' : 'Confirm'}
+        cancelText="Cancel"
+        confirmVariant="danger"
+        confirmDisabled={isDeleting}
+        cancelDisabled={isDeleting}
+        onCancel={() => {
+          if (!isDeleting) setIsDeleteConfirmOpen(false);
+        }}
+        onConfirm={async () => {
+          if (!editProductId) return;
+          setIsDeleting(true);
+          try {
+            await onDeleteProduct(editProductId);
+            setIsDeleteConfirmOpen(false);
+            setIsEditModalOpen(false);
+          } catch (err) {
+            console.error('Delete product failed', err);
+          } finally {
+            setIsDeleting(false);
+          }
+        }}
+      />
       {productStatus.type && (
         <div className="pointer-events-none absolute left-1/2 bottom-4 z-20 -translate-x-1/2">
           <div
