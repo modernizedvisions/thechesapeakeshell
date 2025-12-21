@@ -314,41 +314,27 @@ export function AdminPage() {
     previewUrl: string,
     setImages: React.Dispatch<React.SetStateAction<ManagedImage[]>>
   ) => {
-    try {
-      const result = await adminUploadImage(file);
-      URL.revokeObjectURL(previewUrl);
-      setImages((prev) =>
-        prev.map((img) =>
-          img.id === id
-            ? {
-                ...img,
-                url: result.url,
-                cloudflareId: result.id,
-                file: undefined,
-                uploading: false,
-                uploadError: undefined,
-                previewUrl: undefined,
-              }
-            : img
-        )
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed';
-      setImages((prev) =>
-        prev.map((img) =>
-          img.id === id
-            ? {
-                ...img,
-                uploading: false,
-                uploadError: message,
-              }
-            : img
-        )
-      );
-    }
+    const result = await adminUploadImage(file);
+    URL.revokeObjectURL(previewUrl);
+    setImages((prev) =>
+      prev.map((img) =>
+        img.id === id
+          ? {
+              ...img,
+              url: result.url,
+              cloudflareId: result.id,
+              file: undefined,
+              uploading: false,
+              uploadError: undefined,
+              previewUrl: undefined,
+            }
+          : img
+      )
+    );
+    return result;
   };
 
-  const addImages = (
+  const addImages = async (
     files: FileList | null,
     setImages: React.Dispatch<React.SetStateAction<ManagedImage[]>>,
     slotIndex?: number
@@ -413,9 +399,49 @@ export function AdminPage() {
       return result;
     });
 
-    uploads.forEach(({ id, file, previewUrl }) => {
-      void uploadManagedImage(id, file, previewUrl, setImages);
-    });
+    const runUploads = async () => {
+      let attempted = 0;
+      let succeeded = 0;
+      let failed = 0;
+
+      for (const { id, file, previewUrl } of uploads) {
+        attempted += 1;
+        console.debug('[shop images] uploading', {
+          attempted,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        });
+        try {
+          const result = await uploadManagedImage(id, file, previewUrl, setImages);
+          console.debug('[shop images] upload success', {
+            name: file.name,
+            id: result.id,
+            url: result.url,
+          });
+          succeeded += 1;
+        } catch (err) {
+          failed += 1;
+          console.error('[shop images] upload error', { name: file.name, err });
+          const message = err instanceof Error ? err.message : 'Upload failed';
+          setImages((prev) =>
+            prev.map((img) =>
+              img.id === id
+                ? {
+                    ...img,
+                    uploading: false,
+                    uploadError: message,
+                  }
+                : img
+            )
+          );
+        }
+      }
+
+      console.debug('[shop images] summary', { attempted, succeeded, failed });
+    };
+
+    void runUploads();
   };
 
   const setPrimaryImage = (
@@ -574,7 +600,7 @@ export function AdminPage() {
       }
     } catch (err) {
       console.error('Create product failed', err);
-      setProductStatus({ type: 'error', message: 'Please fill out all required fields.' });
+      setProductStatus({ type: 'error', message: err instanceof Error ? err.message : 'Create product failed.' });
       setProductSaveState('error');
       setTimeout(() => setProductSaveState('idle'), 1500);
     }
@@ -654,7 +680,7 @@ export function AdminPage() {
       }
     } catch (err) {
       console.error('Update product failed', err);
-      setProductStatus({ type: 'error', message: 'Update failed. Please try again.' });
+      setProductStatus({ type: 'error', message: err instanceof Error ? err.message : 'Update failed. Please try again.' });
       setEditProductSaveState('error');
       setTimeout(() => setEditProductSaveState('idle'), 1500);
       return false;

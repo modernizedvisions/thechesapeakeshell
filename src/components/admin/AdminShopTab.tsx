@@ -472,9 +472,26 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
                   multiple
                   className="hidden"
                   onChange={(e) => {
-                    onAddProductImages(e.target.files, activeProductSlot ?? undefined);
+                    console.debug('[shop images] handler fired', {
+                      time: new Date().toISOString(),
+                      hasEvent: !!e,
+                      hasFiles: !!e?.target?.files,
+                      filesLen: e?.target?.files?.length ?? 0,
+                    });
+                    const fileList = e?.target?.files;
+                    const files = fileList ? Array.from(fileList) : [];
+                    console.debug(
+                      '[shop images] files extracted',
+                      files.map((f) => ({ name: f.name, size: f.size, type: f.type }))
+                    );
+                    if (files.length === 0) {
+                      console.warn('[shop images] no files found; aborting upload');
+                      if (e?.target) e.target.value = '';
+                      return;
+                    }
+                    onAddProductImages(fileList, activeProductSlot ?? undefined);
                     setActiveProductSlot(null);
-                    if (productImageFileInputRef.current) productImageFileInputRef.current.value = '';
+                    if (e?.target) e.target.value = '';
                   }}
                 />
               </div>
@@ -524,7 +541,17 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();
-                        onAddProductImages(e.dataTransfer.files, index);
+                        const fileList = e.dataTransfer?.files;
+                        const files = fileList ? Array.from(fileList) : [];
+                        console.debug(
+                          '[shop images] drop files extracted',
+                          files.map((f) => ({ name: f.name, size: f.size, type: f.type }))
+                        );
+                        if (files.length === 0) {
+                          console.warn('[shop images] no files found; aborting upload');
+                          return;
+                        }
+                        onAddProductImages(fileList, index);
                       }}
                       onClick={() => {
                         setActiveProductSlot(index);
@@ -747,8 +774,25 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
                     accept="image/*"
                     multiple
                     className="hidden"
-                    onChange={(e) => {
-                      handleModalFileSelect(e.target.files);
+                  onChange={(e) => {
+                      console.debug('[shop images] handler fired', {
+                        time: new Date().toISOString(),
+                        hasEvent: !!e,
+                        hasFiles: !!e?.target?.files,
+                        filesLen: e?.target?.files?.length ?? 0,
+                      });
+                      const fileList = e?.target?.files;
+                      const files = fileList ? Array.from(fileList) : [];
+                      console.debug(
+                        '[shop images] files extracted',
+                        files.map((f) => ({ name: f.name, size: f.size, type: f.type }))
+                      );
+                      if (files.length === 0) {
+                        console.warn('[shop images] no files found; aborting upload');
+                        if (e?.target) e.target.value = '';
+                        return;
+                      }
+                      handleModalFileSelect(fileList);
                       if (editProductImageFileInputRef.current) editProductImageFileInputRef.current.value = '';
                     }}
                   />

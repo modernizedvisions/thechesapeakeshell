@@ -151,6 +151,8 @@ export async function adminUploadImage(file: File): Promise<{ id: string; url: s
     bodyIsFormData: form instanceof FormData,
     fileCount: 1,
     fileSizes: [file.size],
+    fileName: file.name,
+    fileType: file.type,
   });
 
   const response = await fetch(url, {
@@ -159,7 +161,7 @@ export async function adminUploadImage(file: File): Promise<{ id: string; url: s
     body: form,
   });
 
-  const responseText = await response.clone().text();
+  const responseText = await response.text();
   console.debug('[admin image upload] response', {
     rid,
     status: response.status,
@@ -167,19 +169,18 @@ export async function adminUploadImage(file: File): Promise<{ id: string; url: s
   });
 
   if (!response.ok) {
-    let detail = '';
-    try {
-      const data = await response.json();
-      detail = data?.detail || data?.error || '';
-    } catch {
-      detail = '';
-    }
-    throw new Error(`Image upload failed (${response.status})${detail ? `: ${detail}` : ''}`);
+    const trimmed = responseText.length > 500 ? `${responseText.slice(0, 500)}...` : responseText;
+    throw new Error(`Image upload failed rid=${rid} status=${response.status} body=${trimmed}`);
   }
 
-  const data = await response.json();
+  let data: any = null;
+  try {
+    data = responseText ? JSON.parse(responseText) : null;
+  } catch (err) {
+    throw new Error(`Image upload failed rid=${rid} status=${response.status} body=invalid-json`);
+  }
   if (!data?.id || !data?.url) {
-    throw new Error('Image upload failed: invalid response');
+    throw new Error(`Image upload failed rid=${rid} status=${response.status} body=missing-fields`);
   }
   return { id: data.id, url: data.url };
 }
