@@ -314,24 +314,51 @@ export function AdminPage() {
     previewUrl: string,
     setImages: React.Dispatch<React.SetStateAction<ManagedImage[]>>
   ) => {
-    const result = await adminUploadImage(file);
-    URL.revokeObjectURL(previewUrl);
     setImages((prev) =>
       prev.map((img) =>
         img.id === id
           ? {
               ...img,
-              url: result.url,
-              cloudflareId: result.id,
-              file: undefined,
-              uploading: false,
+              uploading: true,
               uploadError: undefined,
-              previewUrl: undefined,
             }
           : img
       )
     );
-    return result;
+    try {
+      const result = await adminUploadImage(file);
+      URL.revokeObjectURL(previewUrl);
+      setImages((prev) =>
+        prev.map((img) =>
+          img.id === id
+            ? {
+                ...img,
+                url: result.url,
+                cloudflareId: result.id,
+                file: undefined,
+                uploading: false,
+                uploadError: undefined,
+                previewUrl: undefined,
+              }
+            : img
+        )
+      );
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      setImages((prev) =>
+        prev.map((img) =>
+          img.id === id
+            ? {
+                ...img,
+                uploading: false,
+                uploadError: message,
+              }
+            : img
+        )
+      );
+      throw err;
+    }
   };
 
   const addImages = async (
@@ -342,6 +369,8 @@ export function AdminPage() {
     if (!files) return;
     const incoming = Array.from(files);
     const uploads: Array<{ id: string; file: File; previewUrl: string }> = [];
+
+    console.debug('[shop images] batch start', { count: incoming.length, slotIndex });
 
     setImages((prev) => {
       const maxSlots = 4;
@@ -419,26 +448,25 @@ export function AdminPage() {
             id: result.id,
             url: result.url,
           });
+          console.debug('[shop images] settled', { name: file.name, ok: true, urlOrError: result.url });
           succeeded += 1;
         } catch (err) {
           failed += 1;
           console.error('[shop images] upload error', { name: file.name, err });
-          const message = err instanceof Error ? err.message : 'Upload failed';
-          setImages((prev) =>
-            prev.map((img) =>
-              img.id === id
-                ? {
-                    ...img,
-                    uploading: false,
-                    uploadError: message,
-                  }
-                : img
-            )
-          );
+          console.debug('[shop images] settled', {
+            name: file.name,
+            ok: false,
+            urlOrError: err instanceof Error ? err.message : String(err),
+          });
         }
       }
 
-      console.debug('[shop images] summary', { attempted, succeeded, failed });
+      let uploadingCountAfter = 0;
+      setImages((prev) => {
+        uploadingCountAfter = prev.filter((img) => img.uploading).length;
+        return prev;
+      });
+      console.debug('[shop images] batch done', { attempted, succeeded, failed, uploadingCountAfter });
     };
 
     void runUploads();
@@ -533,6 +561,9 @@ export function AdminPage() {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    const uploadingCount = productImages.filter((img) => img.uploading).length;
+    const missingUrlCount = productImages.filter((img) => img.file && !img.cloudflareId).length;
+    const failedCount = productImages.filter((img) => img.uploadError).length;
     console.debug('[shop save] clicked', {
       mode: 'new',
       name: productForm.name,
@@ -541,20 +572,30 @@ export function AdminPage() {
       categoryCount: productForm.category ? 1 : 0,
       imageCount: productImages.length,
       imageKinds: describeImageKinds(productImages),
+      uploadingCount,
+      missingUrlCount,
+      failedCount,
     });
     setProductSaveState('saving');
     setProductStatus({ type: null, message: '' });
 
     try {
-      if (hasPendingUploads(productImages)) {
-        console.debug('[shop save] blocked', { reason: 'images-uploading' });
+      if (uploadingCount > 0) {
+        console.debug('[shop save] blocked', { uploadingCount, missingUrlCount, failedCount });
         setProductStatus({ type: 'error', message: 'Images are still uploading. Please wait.' });
         setProductSaveState('error');
         setTimeout(() => setProductSaveState('idle'), 1500);
         return;
       }
-      if (hasUploadErrors(productImages)) {
-        console.debug('[shop save] blocked', { reason: 'image-upload-error' });
+      if (missingUrlCount > 0) {
+        console.debug('[shop save] blocked', { uploadingCount, missingUrlCount, failedCount });
+        setProductStatus({ type: 'error', message: 'Some images were not uploaded yet.' });
+        setProductSaveState('error');
+        setTimeout(() => setProductSaveState('idle'), 1500);
+        return;
+      }
+      if (failedCount > 0) {
+        console.debug('[shop save] blocked', { uploadingCount, missingUrlCount, failedCount });
         setProductStatus({ type: 'error', message: 'One or more images failed to upload.' });
         setProductSaveState('error');
         setTimeout(() => setProductSaveState('idle'), 1500);

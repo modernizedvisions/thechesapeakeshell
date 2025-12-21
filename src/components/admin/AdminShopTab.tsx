@@ -199,6 +199,7 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
   const [categories, setCategories] = useState<Category[]>([]);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const maxModalImages = 4;
+  const isUploading = productImages.some((img) => img.uploading);
 
   const normalizeCategory = (value: string | undefined | null) => (value || '').trim().toLowerCase();
   const getProductCategories = (product: Product): string[] => {
@@ -392,7 +393,7 @@ export const AdminShopTab: React.FC<AdminShopTabProps> = ({
                   <div className="flex gap-3 pt-2 md:mt-auto">
                     <button
                       type="submit"
-                      disabled={productSaveState === 'saving'}
+                      disabled={productSaveState === 'saving' || isUploading}
                       className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
                     >
                       {productSaveState === 'saving' ? (
