@@ -178,24 +178,25 @@ export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({ onCreateCust
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="relative">
-          <button
-            type="button"
-            onClick={handleCloseDialog}
-            className="absolute right-3 top-3 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-          >
-            CLOSE
-          </button>
+          <div className="absolute right-3 top-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDeleteMessage}
+              className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center"
+              aria-label="Delete message"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleCloseDialog}
+              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              CLOSE
+            </button>
+          </div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-slate-900">Message Details</h2>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDeleteMessage}
-                className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-1"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
           </div>
 
           <div className="max-h-[80vh] overflow-y-auto overflow-x-hidden">
