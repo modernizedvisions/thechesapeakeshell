@@ -1,4 +1,5 @@
 import type Stripe from 'stripe';
+import { extractShippingCentsFromLineItems } from '../api/lib/shipping';
 
 export type LineItemLike = Pick<Stripe.LineItem, 'description' | 'amount_total' | 'price'> & {
   price?: Stripe.Price | null;
@@ -90,16 +91,6 @@ function coalesceCents(values: Array<number | null | undefined>): number | null 
 
 function sumShippingLines(lineItems: LineItemLike[]): number | null {
   if (!lineItems.length) return null;
-  const total = lineItems
-    .filter(isShippingLine)
-    .reduce((acc, line) => acc + Math.round(Number(line.amount_total ?? 0)), 0);
+  const total = extractShippingCentsFromLineItems(lineItems);
   return Number.isFinite(total) ? total : null;
-}
-
-function isShippingLine(line: LineItemLike): boolean {
-  const desc = (line.description || '').toLowerCase();
-  if (desc.includes('shipping')) return true;
-  const productDataName = ((line.price as any)?.product_data?.name || '').toLowerCase();
-  if (productDataName.includes('shipping')) return true;
-  return false;
 }

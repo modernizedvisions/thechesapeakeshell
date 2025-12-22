@@ -168,7 +168,10 @@ export const onRequestPost = async (context: {
           {
             price_data: {
               currency: 'usd',
-              product_data: { name: 'Shipping' },
+              product_data: {
+                name: 'Shipping',
+                metadata: { mv_line_type: 'shipping' },
+              },
               unit_amount: shippingCents,
             },
             quantity: 1,

@@ -28,7 +28,12 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
   const isShippingItem = (item: any) => {
     const name = (item.productName || '').toLowerCase();
     const pid = (item.productId || '').toLowerCase();
-    return name.includes('shipping') || pid === 'shipping' || pid === 'ship' || pid === 'shipping_line';
+    if (name.includes('shipping')) return true;
+    if (pid === 'shipping' || pid === 'ship' || pid === 'shipping_line') return true;
+    const qty = item.quantity ?? 1;
+    const priceCents = item.priceCents ?? 0;
+    if (!name && pid.startsWith('prod_') && priceCents === 500 && qty === 1) return true;
+    return false;
   };
 
   const rawItems = useMemo(() => {
@@ -85,7 +90,10 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
     }));
 
   const lineTotal = (qty: number, priceCents: number) => formatCurrency((qty || 0) * (priceCents || 0));
-  const shippingCents = order.shippingCents ?? shippingFromItems ?? 0;
+  const shippingCents =
+    order.shippingCents && order.shippingCents > 0
+      ? order.shippingCents
+      : shippingFromItems ?? 0;
   const subtotalCents = items.reduce((sum, item) => sum + (item.priceCents || 0) * (item.quantity || 1), 0);
   const totalCents = order.totalCents ?? subtotalCents + shippingCents;
 

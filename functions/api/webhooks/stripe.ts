@@ -14,6 +14,11 @@ import {
 } from '../../_lib/ownerNewSaleEmail';
 import { resolveCustomEmailTotals, resolveStandardEmailTotals } from '../../_lib/emailTotals';
 import { calculateShippingCents } from '../../_lib/shipping';
+import {
+  extractShippingCentsFromLineItems,
+  filterNonShippingLineItems,
+  isShippingLineItem,
+} from '../lib/shipping';
 
 type D1PreparedStatement = {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -194,10 +199,16 @@ export const onRequestPost = async (context: {
       const invoiceId = session.metadata?.invoiceId;
       const customOrderId = session.metadata?.customOrderId;
       const customSource = session.metadata?.source === 'custom_order';
+      const rawLineItems = session.line_items?.data || [];
       const shippingCentsFromStripe = (session.total_details as any)?.amount_shipping ?? null;
-      const inferredShipping = shippingCentsFromStripe !== null && shippingCentsFromStripe !== undefined
-        ? Number(shippingCentsFromStripe)
-        : calculateShippingCents(session.amount_subtotal ?? session.amount_total ?? 0);
+      const amountShipping = Number(shippingCentsFromStripe);
+      const shippingFromLines = extractShippingCentsFromLineItems(rawLineItems);
+      const inferredShipping =
+        Number.isFinite(amountShipping) && amountShipping > 0
+          ? amountShipping
+          : shippingFromLines > 0
+          ? shippingFromLines
+          : calculateShippingCents(session.amount_subtotal ?? session.amount_total ?? 0);
       const shippingCents = Number.isFinite(inferredShipping) ? Number(inferredShipping) : 0;
 
       if (invoiceId) {
@@ -225,11 +236,10 @@ export const onRequestPost = async (context: {
         });
       } else {
         // Update inventory for all line items (skip shipping)
-        const lineItems = session.line_items?.data || [];
+        const lineItems = rawLineItems;
         const aggregate: Record<string, number> = {};
         for (const line of lineItems) {
-          const desc = line.description || (line.price as any)?.product_data?.name;
-          if (desc && desc.toLowerCase().includes('shipping')) continue;
+          if (isShippingLineItem(line)) continue;
           const productIdFromPrice =
             typeof line.price?.product === 'string'
               ? line.price.product
@@ -283,7 +293,7 @@ export const onRequestPost = async (context: {
 
       if (insertResult && customerEmail) {
         const confirmationItems: OrderConfirmationEmailItem[] = mapLineItemsToEmailItems(
-          session.line_items?.data || [],
+          rawLineItems,
           session.currency || 'usd'
         ).map((item) => ({
           name: item.name,
@@ -299,7 +309,7 @@ export const onRequestPost = async (context: {
         const totalsForEmail = resolveStandardEmailTotals({
           session,
           shippingCentsFromContext: shippingCents,
-          lineItems: session.line_items?.data || [],
+          lineItems: rawLineItems,
         });
         console.log('[email totals raw]', {
           kind: 'shop_customer',
@@ -371,7 +381,7 @@ export const onRequestPost = async (context: {
       if (insertResult && !invoiceId && !customOrderId && !customSource) {
         const orderLabel = insertResult.displayOrderId || insertResult.orderId;
         const confirmationItems: OwnerNewSaleItem[] = mapLineItemsToEmailItems(
-          session.line_items?.data || [],
+          rawLineItems,
           session.currency || 'usd'
         ).map((item) => ({
           name: item.name,
@@ -383,7 +393,7 @@ export const onRequestPost = async (context: {
         const totalsForEmail = resolveStandardEmailTotals({
           session,
           shippingCentsFromContext: shippingCents,
-          lineItems: session.line_items?.data || [],
+          lineItems: rawLineItems,
         });
         console.log('[email totals raw]', {
           kind: 'shop_owner',
@@ -891,32 +901,27 @@ async function ensureCustomOrdersSchema(db: D1Database) {
 }
 
 function mapLineItemsToEmailItems(lineItems: Stripe.LineItem[], currency: string): EmailItem[] {
-  return lineItems
-    .filter((line) => {
-      const desc = line.description || (line.price as any)?.product_data?.name || '';
-      return !desc.toLowerCase().includes('shipping');
-    })
-    .map((line) => {
-      const productObj =
-        line.price?.product && typeof line.price.product !== 'string'
-          ? (line.price.product as Stripe.Product)
-          : null;
-      const name =
-        line.description ||
-        productObj?.name ||
-        (line.price as any)?.product_data?.name ||
-        'Item';
-      const imageUrl =
-        productObj?.images?.[0] ||
-        (line.price as any)?.product_data?.images?.[0] ||
-        null;
-      return {
-        name,
-        quantity: line.quantity ?? 1,
-        amountCents: line.amount_total ?? (line.price?.unit_amount ?? 0) * (line.quantity ?? 1),
-        imageUrl,
-      } as EmailItem;
-    });
+  return filterNonShippingLineItems(lineItems).map((line) => {
+    const productObj =
+      line.price?.product && typeof line.price.product !== 'string'
+        ? (line.price.product as Stripe.Product)
+        : null;
+    const name =
+      line.description ||
+      productObj?.name ||
+      (line.price as any)?.product_data?.name ||
+      'Item';
+    const imageUrl =
+      productObj?.images?.[0] ||
+      (line.price as any)?.product_data?.images?.[0] ||
+      null;
+    return {
+      name,
+      quantity: line.quantity ?? 1,
+      amountCents: line.amount_total ?? (line.price?.unit_amount ?? 0) * (line.quantity ?? 1),
+      imageUrl,
+    } as EmailItem;
+  });
 }
 
 async function handleCustomOrderPayment(args: {
@@ -1381,7 +1386,7 @@ async function insertStandardOrderAndItems(args: {
 
   const preparedLineItems =
     lineItemsOverride ||
-    (session.line_items?.data || []).map((line) => {
+    filterNonShippingLineItems(session.line_items?.data || []).map((line) => {
       const qty = line.quantity ?? 1;
       const priceCents = line.price?.unit_amount ?? 0;
       const productIdFromPrice =
