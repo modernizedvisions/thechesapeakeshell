@@ -34,4 +34,20 @@
       grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     }
   }
+  .gallery-dense {
+    grid-auto-flow: dense;
+  }
+  .gallery-grid {
+    grid-auto-rows: 120px;
+  }
+  @media (min-width: 768px) {
+    .gallery-grid {
+      grid-auto-rows: 110px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .gallery-grid {
+      grid-auto-rows: 130px;
+    }
+  }
 }

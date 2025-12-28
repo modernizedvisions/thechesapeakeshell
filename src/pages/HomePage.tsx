@@ -339,7 +339,7 @@ export function HomePage() {
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-10 md:mb-12">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">CUSTOM ORDERS</h2>
-            <p className="mt-3 text-sm md:text-base text-slate-600 max-w-2xl mx-auto">
+            <p className="mt-3 text-sm md:text-base text-slate-600 max-w-2xl mx-auto font-serif">
               Have something specific in mind? From wedding parties to special dates and colors, I’m happy to create custom oyster shell pieces that feel personal to you — or to someone you love.
             </p>
           </div>
@@ -414,7 +414,7 @@ export function HomePage() {
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-6">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">FOLLOW ALONG</h2>
-            <p className="mt-3 text-sm md:text-base text-slate-600 max-w-xl mx-auto">
+            <p className="mt-3 text-sm md:text-base text-slate-600 max-w-xl mx-auto font-serif">
               See new pieces and find out where I’ll be for craft shows and pop-ups — follow on social to stay up to date.
             </p>
           </div>

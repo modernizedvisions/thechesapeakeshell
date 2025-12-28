@@ -384,7 +384,7 @@ export function ShopPage() {
           <h1 className="text-4xl sm:text-5xl font-serif font-bold tracking-wide text-gray-900">
             THE COLLECTION
           </h1>
-          <p className="text-gray-600 text-lg mt-2">
+          <p className="text-gray-600 text-lg mt-2 font-serif">
             One-of-a-kind shell art, crafted with care on the Chesapeake Bay.
           </p>
         </div>
