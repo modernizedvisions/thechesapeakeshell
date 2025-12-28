@@ -20,11 +20,7 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
     <section
       id="hero"
       className="relative w-full overflow-hidden"
-      style={{
-        backgroundImage: "url('https://files.reimage.dev/modernizedvisions/133841516e23/original')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
+      style={{ backgroundColor: '#ffffff' }}
     >
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-16 md:py-20">
         <div className="grid md:grid-cols-2 gap-10 items-center">
