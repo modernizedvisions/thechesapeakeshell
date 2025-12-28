@@ -1,12 +1,24 @@
 import React from 'react';
 import { CheckCircle, Eye, EyeOff, Plus, Trash2, Upload } from 'lucide-react';
-import type { GalleryImage } from '../../lib/types';
 import { AdminSectionHeader } from './AdminSectionHeader';
 import { adminUploadImageScoped } from '../../lib/api';
 
+export type AdminGalleryItem = {
+  id: string;
+  url: string | null;
+  previewUrl?: string | null;
+  alt?: string;
+  hidden?: boolean;
+  position?: number;
+  createdAt?: string;
+  isUploading?: boolean;
+  uploadError?: string | null;
+  file?: File;
+};
+
 export interface AdminGalleryTabProps {
-  images: GalleryImage[];
-  onChange: React.Dispatch<React.SetStateAction<GalleryImage[]>>;
+  images: AdminGalleryItem[];
+  onChange: React.Dispatch<React.SetStateAction<AdminGalleryItem[]>>;
   onSave: () => Promise<void>;
   saveState: 'idle' | 'saving' | 'success' | 'error';
   fileInputRef: React.RefObject<HTMLInputElement>;
@@ -31,8 +43,8 @@ export function AdminGalleryTab(props: AdminGalleryTabProps) {
 }
 
 interface GalleryAdminProps {
-  images: GalleryImage[];
-  onChange: React.Dispatch<React.SetStateAction<GalleryImage[]>>;
+  images: AdminGalleryItem[];
+  onChange: React.Dispatch<React.SetStateAction<AdminGalleryItem[]>>;
   onSave: () => Promise<void>;
   saveState: 'idle' | 'saving' | 'success' | 'error';
   fileInputRef: React.RefObject<HTMLInputElement>;
@@ -51,6 +63,8 @@ function GalleryAdmin({
   description = 'Add, hide, or remove gallery images.', // Uses PUT /api/gallery with payload { images: GalleryImage[] }
   maxImages,
 }: GalleryAdminProps) {
+  const hasBlockingIssues = images.some((img) => img.isUploading || img.uploadError || !img.url);
+
   const handleAddImages = (files: FileList | null) => {
     if (!files) return;
     const fileArray = Array.from(files);
@@ -58,20 +72,20 @@ function GalleryAdmin({
     const selected = typeof allowed === 'number' ? fileArray.slice(0, allowed) : fileArray;
     if (!selected.length) return;
 
-    const queued: GalleryImage[] = selected.map((file, index) => {
+    const queued: AdminGalleryItem[] = selected.map((file, index) => {
       const previewUrl = URL.createObjectURL(file);
       return {
         id: crypto.randomUUID(),
-        imageUrl: previewUrl,
+        url: null,
         alt: file.name,
         hidden: false,
         createdAt: new Date().toISOString(),
         position: images.length + index,
-        uploading: true,
+        isUploading: true,
         uploadError: undefined,
         previewUrl,
         file,
-      } as GalleryImage;
+      };
     });
 
     onChange([...images, ...queued]);
@@ -81,16 +95,16 @@ function GalleryAdmin({
         if (!img.file) continue;
         try {
           const result = await adminUploadImageScoped(img.file, { scope: 'gallery' });
-          if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);
+          if (img.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(img.previewUrl);
           onChange((prev) =>
             prev.map((entry) =>
               entry.id === img.id
                 ? {
                     ...entry,
-                    imageUrl: result.url,
-                    uploading: false,
+                    url: result.url,
+                    previewUrl: result.url,
+                    isUploading: false,
                     uploadError: undefined,
-                    previewUrl: undefined,
                     file: undefined,
                   }
                 : entry
@@ -103,7 +117,7 @@ function GalleryAdmin({
               entry.id === img.id
                 ? {
                     ...entry,
-                    uploading: false,
+                    isUploading: false,
                     uploadError: message,
                   }
                 : entry
@@ -117,6 +131,10 @@ function GalleryAdmin({
   };
 
   const handleRemove = (id: string) => {
+    const target = images.find((img) => img.id === id);
+    if (target?.previewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(target.previewUrl);
+    }
     onChange(images.filter((img) => img.id !== id));
   };
 
@@ -153,7 +171,7 @@ function GalleryAdmin({
         img.id === id
           ? {
               ...img,
-              uploading: true,
+              isUploading: true,
               uploadError: undefined,
             }
           : img
@@ -161,16 +179,16 @@ function GalleryAdmin({
     );
     try {
       const result = await adminUploadImageScoped(target.file, { scope: 'gallery' });
-      if (target.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      if (target.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(target.previewUrl);
       onChange((prev) =>
         prev.map((img) =>
           img.id === id
             ? {
                 ...img,
-                imageUrl: result.url,
-                uploading: false,
+                url: result.url,
+                previewUrl: result.url,
+                isUploading: false,
                 uploadError: undefined,
-                previewUrl: undefined,
                 file: undefined,
               }
             : img
@@ -183,7 +201,7 @@ function GalleryAdmin({
           img.id === id
             ? {
                 ...img,
-                uploading: false,
+                isUploading: false,
                 uploadError: message,
               }
             : img
@@ -204,7 +222,7 @@ function GalleryAdmin({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
           <button
             onClick={onSave}
-            disabled={saveState === 'saving'}
+            disabled={saveState === 'saving' || hasBlockingIssues}
             className="inline-flex items-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
           >
             {saveState === 'saving' ? (
@@ -263,8 +281,8 @@ function GalleryAdmin({
         {images.map((img, idx) => (
           <div key={img.id} className="relative group rounded-lg overflow-hidden border border-gray-200">
             <div className="aspect-square bg-gray-100">
-              <img src={img.previewUrl || img.imageUrl} alt={img.alt || `Gallery image ${idx + 1}`} className="w-full h-full object-cover" />
-              {img.uploading && (
+              <img src={img.previewUrl || img.url || ''} alt={img.alt || `Gallery image ${idx + 1}`} className="w-full h-full object-cover" />
+              {img.isUploading && (
                 <div className="absolute inset-0 bg-white/70 flex items-center justify-center text-xs text-gray-700">
                   Uploading...
                 </div>

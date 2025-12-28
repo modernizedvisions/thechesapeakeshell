@@ -15,7 +15,7 @@ import { GalleryImage, Product } from '../lib/types';
 import type { AdminOrder } from '../lib/db/orders';
 import { AdminOrdersTab } from '../components/admin/AdminOrdersTab';
 import { AdminSoldTab } from '../components/admin/AdminSoldTab';
-import { AdminGalleryTab } from '../components/admin/AdminGalleryTab';
+import { AdminGalleryTab, type AdminGalleryItem } from '../components/admin/AdminGalleryTab';
 import { AdminHomeTab } from '../components/admin/AdminHomeTab';
 import { AdminMessagesTab } from '../components/admin/AdminMessagesTab';
 import { AdminShopTab } from '../components/admin/AdminShopTab';
@@ -88,7 +88,7 @@ export function AdminPage() {
   const [soldProducts, setSoldProducts] = useState<Product[]>([]);
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [galleryImages, setGalleryImages] = useState<AdminGalleryItem[]>([]);
   const [activeTab, setActiveTab] = useState<'orders' | 'shop' | 'messages' | 'customOrders' | 'images' | 'sold'>('orders');
   const [gallerySaveState, setGallerySaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [productSaveState, setProductSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -200,7 +200,16 @@ export function AdminPage() {
         }),
       ]);
       setSoldProducts(soldData);
-      setGalleryImages(galleryData);
+      setGalleryImages(
+        galleryData.map((img) => ({
+          id: img.id,
+          url: img.imageUrl,
+          alt: img.alt,
+          hidden: img.hidden,
+          position: img.position,
+          createdAt: img.createdAt,
+        }))
+      );
     } catch (err) {
       // Already logged per-call; avoid throwing to keep orders visible.
     }
@@ -1027,16 +1036,21 @@ export function AdminPage() {
               onSave={async () => {
                 setGallerySaveState('saving');
                 try {
-                  const hasPending = galleryImages.some((img) => img.uploading);
+                  const hasPending = galleryImages.some((img) => img.isUploading);
                   const hasErrors = galleryImages.some((img) => img.uploadError);
-                  const hasInvalid = galleryImages.some((img) => img.imageUrl?.startsWith('blob:') || img.imageUrl?.startsWith('data:'));
+                  const missingUrl = galleryImages.some((img) => !img.url);
+                  const hasInvalid = galleryImages.some((img) => img.url?.startsWith('blob:') || img.url?.startsWith('data:'));
                   if (hasPending) throw new Error('Gallery images are still uploading.');
                   if (hasErrors) throw new Error('Fix failed gallery uploads before saving.');
+                  if (missingUrl) throw new Error('Some images haven’t finished uploading.');
                   if (hasInvalid) throw new Error('Gallery images must be uploaded first (no blob/data URLs).');
                   const normalized = galleryImages.map((img, idx) => ({
-                    ...img,
-                    position: idx,
+                    id: img.id,
+                    url: img.url,
+                    alt: img.alt,
                     hidden: !!img.hidden,
+                    position: idx,
+                    createdAt: img.createdAt || new Date().toISOString(),
                   }));
                   if (import.meta.env.DEV) {
                     console.debug('[admin gallery] saving', {
@@ -1046,7 +1060,16 @@ export function AdminPage() {
                     });
                   }
                   const saved = await saveGalleryImages(normalized);
-                  setGalleryImages(saved);
+                  setGalleryImages(
+                    saved.map((img: GalleryImage) => ({
+                      id: img.id,
+                      url: img.imageUrl,
+                      alt: img.alt,
+                      hidden: img.hidden,
+                      position: img.position,
+                      createdAt: img.createdAt,
+                    }))
+                  );
                   setGallerySaveState('success');
                   setTimeout(() => setGallerySaveState('idle'), 1500);
                 } catch (err) {

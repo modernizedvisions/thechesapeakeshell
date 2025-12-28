@@ -168,7 +168,14 @@ export async function adminUploadImageScoped(
     body: form,
   });
 
-  const responseText = await response.text();
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch (err) {
+    throw new Error('Upload response was not valid JSON');
+  }
+
+  const responseText = data ? JSON.stringify(data) : '';
   console.debug('[admin image upload] response', {
     rid,
     status: response.status,
@@ -180,14 +187,8 @@ export async function adminUploadImageScoped(
     throw new Error(`Image upload failed rid=${rid} status=${response.status} body=${trimmed}`);
   }
 
-  let data: any = null;
-  try {
-    data = responseText ? JSON.parse(responseText) : null;
-  } catch (err) {
-    throw new Error(`Image upload failed rid=${rid} status=${response.status} body=invalid-json`);
-  }
   if (!data?.id || !data?.url) {
-    throw new Error(`Image upload failed rid=${rid} status=${response.status} body=missing-fields`);
+    throw new Error(`Image upload failed rid=${rid} status=${response.status} body=missing-fields payload=${responseText}`);
   }
   return { id: data.id, url: data.url };
 }
