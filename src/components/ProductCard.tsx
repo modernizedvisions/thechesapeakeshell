@@ -1,5 +1,5 @@
 import { ShoppingCart } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Product } from '../lib/types';
 import { useCartStore } from '../store/cartStore';
 import { useUIStore } from '../store/uiStore';
@@ -51,6 +51,8 @@ export function ProductCard({ product }: ProductCardProps) {
 
   const priceLabel = product.priceCents ? `$${(product.priceCents / 100).toFixed(2)}` : '';
 
+  const productHref = `/product/${product.id}`;
+
   return (
     <div className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
       <div className="relative aspect-square overflow-hidden bg-gray-100">
@@ -59,17 +61,23 @@ export function ProductCard({ product }: ProductCardProps) {
             In Your Cart
           </span>
         )}
-        {product.imageUrl || product.imageUrls?.[0] ? (
-          <img
-            src={product.imageUrl || product.imageUrls?.[0]}
-            alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">
-            No image
-          </div>
-        )}
+        <Link
+          to={productHref}
+          aria-label={`View ${product.name}`}
+          className="block h-full w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        >
+          {product.imageUrl || product.imageUrls?.[0] ? (
+            <img
+              src={product.imageUrl || product.imageUrls?.[0]}
+              alt={product.name}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-gray-400">
+              No image
+            </div>
+          )}
+        </Link>
       </div>
       <div className="p-3">
         <div className="flex items-center justify-between gap-3 mb-3">
@@ -87,7 +95,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
         <div className="mt-3 grid grid-cols-2 gap-0">
           <button
-            onClick={() => navigate(`/product/${product.id}`)}
+            onClick={() => navigate(productHref)}
             className="w-full bg-white border border-gray-300 text-gray-800 py-2 px-4 rounded-l-lg font-medium hover:border-gray-400 transition-colors"
           >
             View
