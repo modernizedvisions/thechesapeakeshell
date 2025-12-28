@@ -114,7 +114,7 @@ export function ContactForm() {
         <div className="text-center mb-8">
           <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">GET IN TOUCH</h2>
           <p className="mt-3 text-sm md:text-base text-slate-600 max-w-2xl mx-auto font-serif subtitle-text">
-            Have an idea or a question? Reach out below.
+            Interested in a custom piece or looking for something specific? Send a message and we’ll reply shortly.
           </p>
         </div>
         <div className="w-full max-w-4xl mx-auto rounded-2xl border border-slate-200 shadow-lg bg-white overflow-hidden p-4 sm:p-6 md:p-8">

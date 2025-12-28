@@ -268,7 +268,6 @@ export function HomePage() {
       <HomeHero heroImages={heroImages} heroRotationEnabled={heroRotationEnabled} />
 
       <section className="pt-0 pb-16 bg-white" data-testid="section-hero-shop">
-        <WaveDivider direction="down" fill="#ffffff" className="bg-[#F6F1E7]" dataTestId="divider-hero" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="text-3xl font-serif font-semibold text-gray-900 mb-8 text-center">
               SHOP THE COLLECTION
@@ -396,7 +395,7 @@ export function HomePage() {
       </section>
 
       <section
-        className="w-full pt-0 pb-16 md:pb-20 -mt-px"
+        className="w-full py-16 md:py-20 -mt-px"
         style={{ backgroundColor: followBg }}
         data-testid="section-follow"
       >
