@@ -309,7 +309,7 @@ export function HomePage() {
                       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/55 to-transparent" />
 
                       <div className="absolute inset-x-0 bottom-4 flex justify-center">
-                        <span className="pointer-events-auto inline-flex items-center rounded-full rounded-ui bg-white px-6 py-2 text-sm font-medium text-gray-900 shadow-sm transition-colors group-hover:bg-gray-900 group-hover:text-white">
+                        <span className="pointer-events-auto inline-flex items-center rounded-full rounded-ui bg-white px-6 py-2 text-sm font-medium font-serif text-gray-900 shadow-sm transition-colors group-hover:bg-gray-900 group-hover:text-white">
                           {`Shop ${category.name}`}
                         </span>
                       </div>
@@ -321,7 +321,7 @@ export function HomePage() {
               <div className="flex justify-center mt-10">
                 <Link
                   to="/shop"
-                  className="inline-flex items-center justify-center rounded-full rounded-ui bg-gray-900 px-8 py-3 text-base font-medium text-white shadow-md transition hover:bg-gray-800 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+                  className="inline-flex items-center justify-center rounded-full rounded-ui bg-gray-900 px-8 py-3 text-base font-medium font-serif text-white shadow-md transition hover:bg-gray-800 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
                 >
                   Explore the Whole Collection
                 </Link>

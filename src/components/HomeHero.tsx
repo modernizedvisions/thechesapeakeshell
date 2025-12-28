@@ -34,13 +34,13 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Link
                 to="/shop"
-                className="inline-flex items-center justify-center rounded-full rounded-ui bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 focus:ring-offset-white/70"
+                className="inline-flex items-center justify-center rounded-full rounded-ui bg-slate-900 px-5 py-2.5 text-sm font-medium font-serif text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 focus:ring-offset-white/70"
               >
                 Shop New Art
               </Link>
               <Link
                 to="/gallery"
-                className="inline-flex items-center justify-center rounded-full rounded-ui border border-slate-300 bg-white/70 px-5 py-2.5 text-sm font-medium text-slate-900 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 focus:ring-offset-white/70"
+                className="inline-flex items-center justify-center rounded-full rounded-ui border border-slate-300 bg-white/70 px-5 py-2.5 text-sm font-medium font-serif text-slate-900 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 focus:ring-offset-white/70"
               >
                 View Gallery
               </Link>
