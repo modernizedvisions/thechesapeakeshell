@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import type { HeroCollageImage } from '../lib/types';
 import HeroSlideshow from './HeroSlideshow';
 
@@ -21,7 +21,7 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
       id="hero"
       className="relative w-full overflow-hidden"
       style={{
-        backgroundImage: "url('https://files.reimage.dev/modernizedvisions/f4d2dae55aea/original')",
+        backgroundImage: "url('https://files.reimage.dev/modernizedvisions/133841516e23/original')",
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
@@ -30,10 +30,11 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
         <div className="grid md:grid-cols-2 gap-10 items-center">
           <div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">
-              PIECES OF THE COAST, BRUSHED WITH COLOR.
+              <span className="block">THE</span>
+              <span className="block">CHESAPEAKE SHELL</span>
             </h1>
             <p className="mt-3 max-w-lg text-base sm:text-lg text-slate-600 font-serif subtitle-text">
-              Hand-painted shell art and coastal gifts — each piece is one-of-a-kind and made to brighten your home.
+              Made by hand, one piece at a time — using shells, texture, and a little coastal magic. Browse what’s available or reach out for a custom design.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Link

@@ -267,7 +267,7 @@ export function HomePage() {
     <div className="bg-white">
       <HomeHero heroImages={heroImages} heroRotationEnabled={heroRotationEnabled} />
 
-      <section className="pt-0 pb-16 bg-white" data-testid="section-hero-shop">
+      <section className="pt-12 md:pt-16 pb-16 bg-white" data-testid="section-hero-shop">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="text-3xl font-serif font-semibold text-gray-900 mb-8 text-center">
               SHOP THE COLLECTION

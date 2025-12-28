@@ -14,7 +14,7 @@ export function CartIcon() {
     >
       <ShoppingCart className="w-6 h-6 text-gray-700" />
       {totalItems > 0 && (
-        <span className="absolute -top-1 -right-1 bg-gray-900 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+        <span className="absolute -top-1 -right-1 text-xs font-serif font-semibold text-slate-900 leading-none">
           {totalItems}
         </span>
       )}
