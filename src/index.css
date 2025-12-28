@@ -34,6 +34,10 @@
     @apply font-sans text-gray-900 bg-white;
   }
 
+  button {
+    @apply font-serif;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif;
   }
