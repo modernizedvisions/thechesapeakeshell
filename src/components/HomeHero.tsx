@@ -27,7 +27,8 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
           <div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">
               <span className="block">THE</span>
-              <span className="block">CHESAPEAKE SHELL</span>
+              <span className="block">CHESAPEAKE</span>
+              <span className="block">SHELL</span>
             </h1>
             <p className="mt-3 max-w-lg text-base sm:text-lg text-slate-600 font-serif subtitle-text">
               Made by hand, one piece at a time — using shells, texture, and a little coastal magic. Browse what’s available or reach out for a custom design.
@@ -49,7 +50,7 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
           </div>
 
           <div className="flex justify-center md:justify-end">
-            <div className="w-full max-w-[620px] aspect-[5/4] min-h-[320px] md:min-h-[420px] lg:min-h-[460px] overflow-hidden rounded-2xl border border-slate-200 bg-white/80 shadow-lg flex items-center justify-center">
+            <div className="w-full max-w-[620px] aspect-[5/4] min-h-[320px] md:min-h-[420px] lg:min-h-[460px] overflow-hidden rounded-2xl bg-white/80 flex items-center justify-center">
               {heroImages.length > 1 && heroRotationEnabled ? (
                 <HeroSlideshow
                   images={heroImages.map((img, idx) => ({

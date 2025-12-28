@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { X, Minus, Plus, Trash2 } from 'lucide-react';
 import { useCartStore } from '../../store/cartStore';
 import { useUIStore } from '../../store/uiStore';
@@ -13,7 +14,24 @@ export function CartDrawer() {
   const getSubtotal = useCartStore((state) => state.getSubtotal());
   const navigate = useNavigate();
 
-  if (!isOpen) return null;
+  const [isVisible, setIsVisible] = useState(isOpen);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsVisible(true);
+      const raf = requestAnimationFrame(() => setIsActive(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    if (isVisible) {
+      setIsActive(false);
+      const timeout = window.setTimeout(() => setIsVisible(false), 280);
+      return () => window.clearTimeout(timeout);
+    }
+    return undefined;
+  }, [isOpen, isVisible]);
+
+  if (!isVisible) return null;
 
   const shippingCents = calculateShippingCents(getSubtotal);
   const totalCents = getSubtotal + shippingCents;
@@ -28,10 +46,10 @@ export function CartDrawer() {
   return (
     <>
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        className={`fixed inset-0 bg-black bg-opacity-50 z-40 drawer-overlay motion-safe-only ${isActive ? 'is-open' : 'is-closed'}`}
         onClick={() => setCartDrawerOpen(false)}
       />
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col">
+      <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col drawer-panel motion-safe-only ${isActive ? 'is-open' : 'is-closed'}`}>
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-bold">Your Cart</h2>
           <button

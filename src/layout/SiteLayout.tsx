@@ -10,6 +10,8 @@ export function SiteLayout() {
   const setOpenCartOnLoad = useUIStore((state) => state.setOpenCartOnLoad);
   const setCartDrawerOpen = useUIStore((state) => state.setCartDrawerOpen);
   const [isNavDrawerOpen, setNavDrawerOpen] = useState(false);
+  const [isNavDrawerVisible, setNavDrawerVisible] = useState(false);
+  const [isNavDrawerActive, setNavDrawerActive] = useState(false);
   const location = useLocation();
 
   const navLinks = useMemo(
@@ -44,6 +46,20 @@ export function SiteLayout() {
   useEffect(() => {
     setNavDrawerOpen(false);
   }, [location]);
+
+  useEffect(() => {
+    if (isNavDrawerOpen) {
+      setNavDrawerVisible(true);
+      const raf = requestAnimationFrame(() => setNavDrawerActive(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    if (isNavDrawerVisible) {
+      setNavDrawerActive(false);
+      const timeout = window.setTimeout(() => setNavDrawerVisible(false), 260);
+      return () => window.clearTimeout(timeout);
+    }
+    return undefined;
+  }, [isNavDrawerOpen, isNavDrawerVisible]);
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -85,13 +101,13 @@ export function SiteLayout() {
         </nav>
       </header>
 
-      {isNavDrawerOpen && (
+      {isNavDrawerVisible && (
         <>
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            className={`fixed inset-0 bg-black bg-opacity-50 z-40 drawer-overlay motion-safe-only ${isNavDrawerActive ? 'is-open' : 'is-closed'}`}
             onClick={() => setNavDrawerOpen(false)}
           />
-          <div className="fixed left-0 top-0 h-full w-full max-w-xs bg-white shadow-xl z-50 flex flex-col">
+          <div className={`fixed left-0 top-0 h-full w-full max-w-xs bg-white shadow-xl z-50 flex flex-col menu-panel motion-safe-only ${isNavDrawerActive ? 'is-open' : 'is-closed'}`}>
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900 uppercase tracking-[0.08em]">Menu</h2>
               <button

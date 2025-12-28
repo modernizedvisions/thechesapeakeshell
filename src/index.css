@@ -29,6 +29,56 @@
   border-radius: 9999px !important;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe-only {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+.drawer-overlay {
+  transition: opacity 260ms ease;
+  opacity: 0;
+}
+.drawer-overlay[data-state="open"],
+.drawer-overlay.is-open {
+  opacity: 1;
+}
+
+.drawer-panel {
+  transition: transform 280ms cubic-bezier(.22,1,.36,1), opacity 240ms ease;
+  transform: translateX(16px);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.drawer-panel[data-state="open"],
+.drawer-panel.is-open {
+  transform: translateX(0);
+  opacity: 1;
+}
+.drawer-panel[data-state="closed"],
+.drawer-panel.is-closed {
+  transform: translateX(16px);
+  opacity: 0;
+}
+
+.menu-panel {
+  transition: transform 260ms cubic-bezier(.22,1,.36,1), opacity 220ms ease;
+  transform: translateY(-10px);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.menu-panel[data-state="open"],
+.menu-panel.is-open {
+  transform: translateY(0);
+  opacity: 1;
+}
+.menu-panel[data-state="closed"],
+.menu-panel.is-closed {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
 @layer base {
   body {
     @apply font-sans text-gray-900 bg-white;
