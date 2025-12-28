@@ -38,7 +38,7 @@ export function GalleryPage() {
         <div className="flex justify-center mb-8">
           <Link
             to="/shop"
-            className="inline-flex items-center justify-center rounded-full rounded-ui bg-gray-900 px-6 py-2 text-sm font-medium text-white shadow-md transition hover:bg-gray-800"
+            className="inline-flex items-center justify-center rounded-full rounded-ui bg-gray-900 px-6 py-2 text-sm font-medium font-serif text-white shadow-md transition hover:bg-gray-800"
           >
             Shop The Collection
           </Link>
@@ -55,11 +55,11 @@ export function GalleryPage() {
               {galleryImages.length === 0 ? (
                 <div className="text-gray-500">No images yet.</div>
               ) : (
-                <div className="gallery-grid grid grid-cols-2 landscape:grid-cols-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="gallery-grid grid grid-cols-2 lg:grid-cols-3 gap-6">
                   {galleryImages.map((item) => (
                     <div key={item.id} className="relative group cursor-pointer">
                       <div
-                        className="aspect-square overflow-hidden rounded-lg bg-gray-100"
+                        className="aspect-[4/3] overflow-hidden rounded-lg bg-gray-100"
                         onClick={() => setSelectedImage(item.imageUrl)}
                       >
                         <img
@@ -75,15 +75,17 @@ export function GalleryPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Sold Products</h2>
+              <h2 className="text-center text-3xl font-semibold tracking-wide text-gray-900 uppercase mb-4">
+                Sold Products
+              </h2>
               {soldProducts.length === 0 ? (
                 <div className="text-gray-500">No sold products yet.</div>
               ) : (
-                <div className="sold-grid grid grid-cols-2 landscape:grid-cols-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="sold-grid grid grid-cols-2 lg:grid-cols-3 gap-6">
                   {soldProducts.map((item) => (
                     <div key={item.id} className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                       <div
-                        className="relative aspect-square overflow-hidden bg-gray-100 cursor-pointer"
+                        className="relative aspect-[4/3] overflow-hidden bg-gray-100 cursor-pointer"
                         onClick={() => setSelectedImage(item.imageUrl)}
                       >
                         {item.imageUrl ? (

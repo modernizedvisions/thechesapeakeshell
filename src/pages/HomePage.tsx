@@ -394,18 +394,6 @@ export function HomePage() {
         </div>
       </section>
 
-      <div
-        className="w-full bg-white leading-[0] m-0 p-0 overflow-hidden -mb-px"
-        data-testid="divider-bridge"
-      >
-        <WaveDivider
-          direction="up"
-          fill={followBg}
-          className="block"
-          dataTestId="divider-custom-follow"
-        />
-      </div>
-
       <section
         className="w-full pt-0 pb-16 md:pb-20 -mt-px"
         style={{ backgroundColor: followBg }}
@@ -465,6 +453,19 @@ export function HomePage() {
           </div>
         </div>
       </section>
+
+      <div
+        className="w-full leading-[0] m-0 p-0 overflow-hidden"
+        style={{ backgroundColor: followBg }}
+        data-testid="divider-contact-follow"
+      >
+        <WaveDivider
+          direction="down"
+          fill="#ffffff"
+          className="block"
+          dataTestId="divider-contact-follow"
+        />
+      </div>
 
       <ContactForm />
     </div>
