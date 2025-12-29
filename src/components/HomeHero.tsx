@@ -70,7 +70,7 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
                     imageUrl: img.imageUrl,
                     title: img.alt,
                   }))}
-                  intervalMs={3000}
+                  intervalMs={5000}
                 />
               ) : heroImage ? (
                 <img src={heroImage.imageUrl} alt={heroImage.alt || 'Featured hero'} className="h-full w-full object-cover" />

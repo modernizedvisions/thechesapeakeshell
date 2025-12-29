@@ -294,33 +294,36 @@ export function HomePage() {
                     tile.imageUrl ||
                     '/images/category-placeholder.jpg';
                   return (
-                    <Link
+                    <div
                       key={`${category.slug || category.id || slot}`}
-                      to={`/shop?type=${encodeURIComponent(category.slug || tile.categorySlug || '')}`}
-                      className="group relative block w-full overflow-hidden rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+                      className="group flex flex-col items-center"
                     >
-                      <div className="aspect-[4/5] sm:aspect-square w-full bg-white border border-gray-200">
-                        {image ? (
-                          <img
-                            src={image}
-                            alt={category.name}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
-                            Image
-                          </div>
-                        )}
-                      </div>
+                      <Link
+                        to={`/shop?type=${encodeURIComponent(category.slug || tile.categorySlug || '')}`}
+                        className="block w-full overflow-hidden shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+                      >
+                        <div className="aspect-[4/5] sm:aspect-square w-full bg-white border border-gray-200">
+                          {image ? (
+                            <img
+                              src={image}
+                              alt={category.name}
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
+                              Image
+                            </div>
+                          )}
+                        </div>
+                      </Link>
 
-                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/55 to-transparent" />
-
-                      <div className="absolute inset-x-0 bottom-4 flex justify-center">
-                        <span className="pointer-events-auto inline-flex items-center rounded-full rounded-ui bg-white px-6 py-2 text-sm font-medium font-serif text-gray-900 shadow-sm transition-colors group-hover:bg-gray-900 group-hover:text-white">
-                          {`Shop ${category.name}`}
-                        </span>
-                      </div>
-                    </Link>
+                      <Link
+                        to={`/shop?type=${encodeURIComponent(category.slug || tile.categorySlug || '')}`}
+                        className="mt-3 inline-flex items-center rounded-full rounded-ui bg-white px-6 py-2 text-sm font-medium font-serif text-gray-900 shadow-sm transition-colors group-hover:bg-gray-900 group-hover:text-white hover:bg-gray-900 hover:text-white"
+                      >
+                        {`Shop ${category.name}`}
+                      </Link>
+                    </div>
                   );
                 })}
               </div>
