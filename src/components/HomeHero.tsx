@@ -1,4 +1,5 @@
 ﻿import { Link } from 'react-router-dom';
+import { useMemo } from 'react';
 import type { HeroCollageImage } from '../lib/types';
 import HeroSlideshow from './HeroSlideshow';
 
@@ -8,7 +9,18 @@ interface HomeHeroProps {
 }
 
 export default function HomeHero({ heroImages = [], heroRotationEnabled = false }: HomeHeroProps) {
-  const heroImage = heroImages.find((img) => !!img?.imageUrl);
+  const filteredHeroImages = useMemo(
+    () =>
+      (heroImages || [])
+        .filter((img) => !!img?.imageUrl)
+        .filter((img) => {
+          const url = img?.imageUrl?.trim() || '';
+          return url && !url.startsWith('blob:') && !url.startsWith('data:');
+        }),
+    [heroImages]
+  );
+  const heroImage = filteredHeroImages[0];
+  const shouldRotate = heroRotationEnabled && filteredHeroImages.length > 1;
 
   if (import.meta.env.DEV) {
     console.debug('[HomeHero] heroImages', heroImages.length, heroImages[0] ? Object.keys(heroImages[0]) : null);
@@ -51,14 +63,14 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
 
           <div className="flex justify-center md:justify-end">
             <div className="w-full max-w-[620px] aspect-[5/4] min-h-[320px] md:min-h-[420px] lg:min-h-[460px] overflow-hidden rounded-2xl bg-white/80 flex items-center justify-center">
-              {heroImages.length > 1 && heroRotationEnabled ? (
+              {shouldRotate ? (
                 <HeroSlideshow
-                  images={heroImages.map((img, idx) => ({
+                  images={filteredHeroImages.map((img, idx) => ({
                     id: img.id || `hero-${idx}`,
                     imageUrl: img.imageUrl,
                     title: img.alt,
                   }))}
-                  intervalMs={7000}
+                  intervalMs={3000}
                 />
               ) : heroImage ? (
                 <img src={heroImage.imageUrl} alt={heroImage.alt || 'Featured hero'} className="h-full w-full object-cover" />

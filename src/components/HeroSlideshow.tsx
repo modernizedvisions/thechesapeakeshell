@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import type { GalleryImage } from '../lib/types';
 
 interface HeroSlideshowProps {
@@ -12,11 +12,11 @@ export function HeroSlideshow({ images, intervalMs = 3000 }: HeroSlideshowProps)
     [images]
   );
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [isFading, setIsFading] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [isDocumentHidden, setIsDocumentHidden] = useState(false);
 
-  const hasMultiple = slides.length > 1;
+  const canRotate = slides.length > 1 && !prefersReducedMotion && !isDocumentHidden;
 
   useEffect(() => {
     const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -33,62 +33,64 @@ export function HeroSlideshow({ images, intervalMs = 3000 }: HeroSlideshowProps)
   }, []);
 
   useEffect(() => {
-    if (!hasMultiple) return;
+    if (slides.length === 0) return;
     setIndex((current) => (current >= slides.length ? 0 : current));
-  }, [hasMultiple, slides.length]);
+  }, [slides.length]);
 
   useEffect(() => {
-    if (!hasMultiple || paused || prefersReducedMotion || isDocumentHidden) return;
+    if (!canRotate) return;
+    let fadeTimeout: number | null = null;
+    if (import.meta.env.DEV) {
+      console.debug('[hero rotation] start interval', { count: slides.length, intervalMs });
+    }
     const timer = window.setInterval(() => {
-      setIndex((current) => (current + 1) % slides.length);
+      setIsFading(true);
+      fadeTimeout = window.setTimeout(() => {
+        setIndex((current) => {
+          const next = (current + 1) % slides.length;
+          if (import.meta.env.DEV) {
+            console.debug('[hero rotation] tick', { next });
+          }
+          return next;
+        });
+        setIsFading(false);
+      }, 180);
     }, intervalMs);
-    return () => window.clearInterval(timer);
-  }, [hasMultiple, paused, prefersReducedMotion, isDocumentHidden, intervalMs, slides.length]);
+    return () => {
+      window.clearInterval(timer);
+      if (fadeTimeout) window.clearTimeout(fadeTimeout);
+    };
+  }, [canRotate, intervalMs, slides.length]);
 
   useEffect(() => {
-    if (!hasMultiple) return;
+    if (slides.length <= 1) return;
     const nextIndex = (index + 1) % slides.length;
     const next = slides[nextIndex];
     if (next?.imageUrl) {
       const img = new Image();
       img.src = next.imageUrl;
     }
-  }, [index, slides, hasMultiple]);
+  }, [index, slides]);
 
   if (slides.length === 0) {
     return (
-      <div className="w-full max-w-[620px] aspect-[5/4] min-h-[320px] md:min-h-[420px] lg:min-h-[460px] rounded-2xl border border-slate-200 bg-white/80 shadow-lg flex items-center justify-center text-slate-400 text-sm">
+      <div className="h-full w-full flex items-center justify-center text-slate-400 text-sm">
         Gallery images will appear here
       </div>
     );
   }
 
-  const trackStyle: React.CSSProperties = {
-    width: `${slides.length * 100}%`,
-    transform: `translateX(-${index * 100}%)`,
-    transition: prefersReducedMotion ? 'none' : 'transform 600ms ease-in-out',
-  };
+  const active = slides[index];
 
   return (
-    <div
-      className="w-full max-w-[620px] aspect-[5/4] min-h-[320px] md:min-h-[420px] lg:min-h-[460px] overflow-hidden rounded-2xl border border-slate-200 bg-white/80 shadow-lg"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-    >
-      <div className="h-full w-full overflow-hidden">
-        <div className="flex h-full" style={trackStyle}>
-          {slides.map((slide, idx) => (
-            <div key={slide.id || idx} className="h-full w-full flex-shrink-0">
-              <img
-                src={slide.imageUrl}
-                alt={slide.title || 'Gallery image'}
-                className="h-full w-full object-cover"
-                loading={idx === 0 ? 'eager' : 'lazy'}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="h-full w-full">
+      <img
+        src={active.imageUrl}
+        alt={active.title || 'Gallery image'}
+        className="h-full w-full object-cover transition-opacity duration-300"
+        style={{ opacity: isFading ? 0 : 1, transition: prefersReducedMotion ? 'none' : undefined }}
+        loading={index === 0 ? 'eager' : 'lazy'}
+      />
     </div>
   );
 }

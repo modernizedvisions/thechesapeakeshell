@@ -138,6 +138,13 @@ export function HomePage() {
       setCustomOrderImages(customOrders);
       setHeroImages(hero);
       setHeroRotationEnabled(rotation);
+      if (import.meta.env.DEV) {
+        console.debug('[home hero] site content', {
+          heroCount: hero.length,
+          heroUrls: hero.map((img) => img?.imageUrl || ''),
+          rotation,
+        });
+      }
     } catch (error) {
       console.error('Error loading hero images:', error);
     } finally {
@@ -473,10 +480,25 @@ export function HomePage() {
 }
 
 function normalizeHomeContent(content: HomeSiteContent) {
-  const hero: HeroCollageImage[] = [];
-  if (content.heroImages?.left) hero[0] = { id: 'hero-left', imageUrl: content.heroImages.left };
-  if (content.heroImages?.middle) hero[1] = { id: 'hero-middle', imageUrl: content.heroImages.middle };
-  if (content.heroImages?.right) hero[2] = { id: 'hero-right', imageUrl: content.heroImages.right };
+  const heroSlots = content?.heroImages || {};
+  const slotOrder: Array<{ key: 'left' | 'middle' | 'right'; id: string }> = [
+    { key: 'left', id: 'hero-left' },
+    { key: 'middle', id: 'hero-middle' },
+    { key: 'right', id: 'hero-right' },
+  ];
+
+  const hero: HeroCollageImage[] = slotOrder
+    .map(({ key, id }) => ({
+      id,
+      imageUrl: (heroSlots as Record<string, string | undefined>)[key] || '',
+    }))
+    .filter((img) => {
+      if (!img.imageUrl) return false;
+      const trimmed = img.imageUrl.trim();
+      if (!trimmed) return false;
+      return !trimmed.startsWith('blob:') && !trimmed.startsWith('data:');
+    })
+    .map((img) => ({ ...img, imageUrl: img.imageUrl.trim() }));
 
   const customOrders = Array.isArray(content.customOrderImages)
     ? content.customOrderImages.slice(0, 4).map((url) => ({ imageUrl: url }))
