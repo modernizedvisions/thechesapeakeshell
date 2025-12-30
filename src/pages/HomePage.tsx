@@ -185,8 +185,9 @@ export function HomePage() {
   };
 
   const customImagesToShow = customOrderImages.length ? customOrderImages : fallbackCustomShellImages;
-  const followBg = '#ffffff';
-  const contactBg = 'var(--follow-bg, #f1f5f9)';
+  const followBg = '#C0CBD8';
+  const contactBg = '#FAC6C8';
+  const customOrdersBg = '#F0E8D1';
 
   // DEBUG: log divider layout/styling to diagnose seam/orientation issues. Remove after diagnosis.
   useEffect(() => {
@@ -275,12 +276,12 @@ export function HomePage() {
       <HomeHero heroImages={heroImages} heroRotationEnabled={heroRotationEnabled} />
 
       <section
-        className="pt-12 md:pt-16 pb-16"
+        className="pt-0 pb-16"
         style={{ backgroundColor: '#D1D2F9' }}
         data-testid="section-hero-shop"
       >
-        <WaveDivider direction="down" fill="#D1D2F9" className="bg-white" dataTestId="divider-hero-shop" />
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <WaveDivider direction="down" fill="#D1D2F9" className="block" dataTestId="divider-hero-shop" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
             <h2 className="text-3xl font-serif font-semibold text-gray-900 mb-8 text-center">
               SHOP THE COLLECTION
             </h2>
@@ -350,7 +351,12 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="w-full bg-white py-16 md:py-20" data-testid="section-custom-orders">
+      <section
+        className="w-full py-16 md:py-20"
+        style={{ backgroundColor: customOrdersBg }}
+        data-testid="section-custom-orders"
+      >
+        <WaveDivider direction="down" fill={customOrdersBg} className="bg-white" dataTestId="divider-custom-orders" />
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-10 md:mb-12">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">CUSTOM ORDERS</h2>
@@ -414,6 +420,7 @@ export function HomePage() {
         style={{ backgroundColor: followBg }}
         data-testid="section-follow"
       >
+        <WaveDivider direction="down" fill={followBg} className="bg-white" dataTestId="divider-follow" />
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-6">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">FOLLOW ALONG</h2>
