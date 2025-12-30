@@ -280,7 +280,6 @@ export function HomePage() {
         style={{ backgroundColor: '#D1D2F9' }}
         data-testid="section-hero-shop"
       >
-        <WaveDivider direction="down" fill="#D1D2F9" className="block" dataTestId="divider-hero-shop" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
             <h2 className="text-3xl font-serif font-semibold text-gray-900 mb-8 text-center">
               SHOP THE COLLECTION
@@ -351,12 +350,19 @@ export function HomePage() {
         </div>
       </section>
 
+      <div
+        className="w-full leading-[0] m-0 p-0 overflow-hidden"
+        style={{ backgroundColor: '#D1D2F9' }}
+        data-testid="divider-shop-custom"
+      >
+        <WaveDivider direction="down" fill={customOrdersBg} className="block" dataTestId="divider-shop-custom" />
+      </div>
+
       <section
         className="w-full py-16 md:py-20"
         style={{ backgroundColor: customOrdersBg }}
         data-testid="section-custom-orders"
       >
-        <WaveDivider direction="down" fill={customOrdersBg} className="bg-white" dataTestId="divider-custom-orders" />
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-10 md:mb-12">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">CUSTOM ORDERS</h2>
@@ -415,12 +421,19 @@ export function HomePage() {
         </div>
       </section>
 
+      <div
+        className="w-full leading-[0] m-0 p-0 overflow-hidden"
+        style={{ backgroundColor: customOrdersBg }}
+        data-testid="divider-custom-follow"
+      >
+        <WaveDivider direction="down" fill={followBg} className="block" dataTestId="divider-custom-follow" />
+      </div>
+
       <section
         className="w-full py-16 md:py-20 -mt-px"
         style={{ backgroundColor: followBg }}
         data-testid="section-follow"
       >
-        <WaveDivider direction="down" fill={followBg} className="bg-white" dataTestId="divider-follow" />
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-6">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">FOLLOW ALONG</h2>
