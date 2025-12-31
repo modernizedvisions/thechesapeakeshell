@@ -382,6 +382,8 @@ export const onRequestPost = async (context: {
             htmlLen: html?.length ?? 0,
             textLen: text?.length ?? 0,
             preview,
+            itemsCount: confirmationItems.length,
+            hasInlineImage: hasUnsafeInlineImages(confirmationItems),
           });
         }
         
@@ -963,7 +965,6 @@ async function mapLineItemsToEmailItemsWithImages(
   siteUrl: string,
   imagesBaseUrl: string | null
 ): Promise<EmailItem[]> {
-  const fallbackImage = siteUrl ? `${siteUrl}/images/logo-circle.png` : null;
   const items = filterNonShippingLineItems(lineItems).map((line) => {
     const productObj =
       line.price?.product && typeof line.price.product !== 'string'
@@ -997,8 +998,7 @@ async function mapLineItemsToEmailItemsWithImages(
     if (!imageUrl && item.productId) {
       imageUrl = await resolveProductImageUrl(db, item.productId);
     }
-    const resolvedImageUrl = resolveEmailImageUrl(imageUrl, siteUrl, imagesBaseUrl);
-    const finalImageUrl = resolvedImageUrl || fallbackImage;
+    const finalImageUrl = resolveEmailImageUrl(imageUrl, siteUrl, imagesBaseUrl);
     console.log('[email] item image src', { name: item.name, src: finalImageUrl });
     results.push({
       name: item.name,
@@ -1654,14 +1654,21 @@ function resolveEmailImageUrl(
   if (!imageUrl) return null;
   const trimmed = imageUrl.trim();
   if (!trimmed) return null;
+  if (trimmed.length > 1000) return null;
+  if (/^(data|blob):/i.test(trimmed)) return null;
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (trimmed.startsWith('/')) return siteUrl ? `${siteUrl}${trimmed}` : trimmed;
-  if (imagesBaseUrl) {
-    const base = imagesBaseUrl.replace(/\/+$/, '');
-    const key = trimmed.replace(/^\/+/, '');
-    return `${base}/${key}`;
-  }
-  return trimmed;
+  if (trimmed.startsWith('/')) return siteUrl ? `${siteUrl}${trimmed}` : null;
+  if (!imagesBaseUrl) return null;
+  const base = imagesBaseUrl.replace(/\/+$/, '');
+  const key = trimmed.replace(/^\/+/, '');
+  return `${base}/${key}`;
+}
+
+function hasUnsafeInlineImages(items: Array<{ imageUrl?: string | null }>): boolean {
+  return items.some((item) => {
+    const url = item.imageUrl || '';
+    return /^(data|blob):/i.test(url);
+  });
 }
 
 function resolveSiteUrl(env: {

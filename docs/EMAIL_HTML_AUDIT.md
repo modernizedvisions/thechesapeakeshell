@@ -31,7 +31,7 @@ Scope: Customer order confirmation email rendering and send path (Resend + Strip
 - **Owner invoice template:** `functions/_lib/emailTemplates.ts` via `renderOwnerInvoicePaidEmail`.
 - **Inline templates:** custom order payment link and invoice creation use inline HTML strings in their respective route handlers.
 
-**Implication:** If the “new template” you edited is not `functions/_lib/orderConfirmationEmail.ts`, it is not wired to the customer confirmation email.
+**Implication:** If the ï¿½new templateï¿½ you edited is not `functions/_lib/orderConfirmationEmail.ts`, it is not wired to the customer confirmation email.
 
 ## 4) What HTML is passed to Resend
 
@@ -43,7 +43,7 @@ Scope: Customer order confirmation email rendering and send path (Resend + Strip
 
 **Order confirmation HTML generation** (`functions/_lib/orderConfirmationEmail.ts`):
 - Uses a table-based HTML string with inline styles.
-- Always returns a non-empty string; if no items are present, it renders a “No items found” row.
+- Always returns a non-empty string; if no items are present, it renders a ï¿½No items foundï¿½ row.
 - No `<html>`/`<body>` wrapper is added (generally OK for email clients, but worth noting).
 
 **Inputs feeding the template** (`functions/api/webhooks/stripe.ts`):
