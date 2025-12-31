@@ -296,12 +296,12 @@ export function HomePage() {
                 {customShellCards.map((card) => (
                   <div
                     key={card.title}
-                    className="rounded-md bg-black text-white shadow-md md:shadow-lg p-5 md:p-6 transition-transform hover:-translate-y-1 hover:shadow-xl"
+                    className="rounded-lg bg-white text-slate-900 shadow-md md:shadow-lg p-5 md:p-6 border border-slate-200 transition-transform hover:-translate-y-1 hover:shadow-xl"
                   >
-                    <h3 className="text-sm font-semibold text-white mb-1.5">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
                       {card.title}
                     </h3>
-                    <p className="text-xs md:text-sm text-gray-200">
+                    <p className="text-xs md:text-sm text-slate-600">
                       {card.body}
                     </p>
                   </div>
@@ -378,8 +378,8 @@ export function HomePage() {
       </section>
 
       <div
-        className="w-full leading-[0] m-0 p-0 overflow-hidden"
-        style={{ backgroundColor: '#ffffff' }}
+        className="w-full leading-[0] m-0 p-0 overflow-hidden -mb-px"
+        style={{ backgroundColor: contactBg }}
         data-testid="divider-contact-follow"
       >
         <WaveDivider
