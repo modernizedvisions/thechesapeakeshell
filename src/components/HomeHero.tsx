@@ -42,7 +42,7 @@ export default function HomeHero({ heroImages = [], heroRotationEnabled = false 
               <span className="block">CHESAPEAKE</span>
               <span className="block">SHELL</span>
             </h1>
-            <p className="mt-3 max-w-lg text-base sm:text-lg text-slate-600 font-serif subtitle-text">
+            <p className="mt-3 max-w-lg text-base sm:text-lg text-slate-900 font-serif subtitle-text">
               Made by hand, one piece at a time — using shells, texture, and a little coastal magic. Browse what’s available or reach out for a custom design.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">

@@ -76,10 +76,14 @@ export function renderOrderConfirmationEmailHtml(params: OrderConfirmationEmailP
       </tr>
     `;
 
-  const shippingBlock = shippingAddress ? formatMultilineAddress(shippingAddress) : 'Not provided';
-  const billingBlock = billingAddress
-    ? formatMultilineAddress(billingAddress)
-    : shippingAddress
+  const shippingLines = formatAddressLines(shippingAddress);
+  const billingLines = formatAddressLines(billingAddress);
+  const shippingBlock = shippingLines.length
+    ? renderAddressLines(shippingLines)
+    : 'Not provided';
+  const billingBlock = billingLines.length
+    ? renderAddressLines(billingLines)
+    : shippingLines.length
     ? 'Same as shipping'
     : 'Not provided';
 
@@ -115,7 +119,7 @@ export function renderOrderConfirmationEmailHtml(params: OrderConfirmationEmailP
     .totals-label { padding:4px 0; font-size:14px; color:${mutedColor}; }
     .totals-value { padding:4px 0; font-size:14px; color:${baseColor}; font-weight:600; }
     .total-row td { padding-top:10px; font-size:16px; font-weight:700; color:${baseColor}; }
-    .info-title { font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:${mutedColor}; margin:0 0 6px; }
+    .info-title { font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:${mutedColor}; margin:0 0 6px; white-space:nowrap; }
     .info { font-size:14px; color:${baseColor}; line-height:1.5; margin:0; }
     .footer { padding-top:16px; font-size:12px; color:${mutedColor}; }
   </style>
@@ -148,12 +152,12 @@ export function renderOrderConfirmationEmailHtml(params: OrderConfirmationEmailP
             </td>
           </tr>
           <tr>
-            <td class="section">
-              <p class="info-title">Shipping address</p>
+            <td class="section" style="width:50%; vertical-align:top; padding-right:16px;">
+              <p class="info-title" style="white-space:nowrap;">Shipping address</p>
               <p class="info">${shippingBlock}</p>
             </td>
-            <td class="section">
-              <p class="info-title">Billing address</p>
+            <td class="section" style="width:50%; vertical-align:top; padding-left:16px;">
+              <p class="info-title" style="white-space:nowrap;">Billing address</p>
               <p class="info">${billingBlock}</p>
             </td>
           </tr>
@@ -217,11 +221,14 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#39;');
 }
 
-function formatMultilineAddress(value: string) {
-  if (!value) return '';
-  const lines = value
+function formatAddressLines(value: string) {
+  if (!value) return [];
+  return value
     .split(/\r\n|\r|\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+function renderAddressLines(lines: string[]) {
   return lines.map((line) => escapeHtml(line)).join('<br/>');
 }
