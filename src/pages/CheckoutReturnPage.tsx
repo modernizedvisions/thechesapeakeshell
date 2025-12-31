@@ -81,7 +81,9 @@ export function CheckoutReturnPage() {
                   session.lineItems
                     .filter((item) => !item.isShipping)
                     .map((item, idx) => {
-                      const showQuantity = !item.oneOff;
+                      const isCustomOrderItem =
+                        (item.productName || '').toLowerCase().startsWith('custom order');
+                      const showQuantity = !item.oneOff && !isCustomOrderItem;
                       const quantity = item.quantity || 1;
                       return (
                         <div key={idx} className="py-3 flex items-center justify-between gap-4">

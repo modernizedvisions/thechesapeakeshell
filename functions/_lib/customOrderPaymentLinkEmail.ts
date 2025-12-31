@@ -58,6 +58,7 @@ export function renderCustomOrderPaymentLinkEmailHtml(
     .item-img { width:56px; height:56px; border:1px solid ${borderColor}; object-fit:cover; display:block; }
     .item-placeholder { width:56px; height:56px; border:1px solid ${borderColor}; background:#f3f4f6; display:block; }
     .item-name { font-size:16px; font-weight:600; color:${baseColor}; }
+    .item-desc { font-size:13px; color:${mutedColor}; margin-top:4px; }
     .item-price { font-size:15px; font-weight:600; color:${baseColor}; white-space:nowrap; }
     .totals-label { padding:4px 0; font-size:14px; color:${mutedColor}; }
     .totals-value { padding:4px 0; font-size:14px; color:${baseColor}; font-weight:600; }
@@ -78,7 +79,6 @@ export function renderCustomOrderPaymentLinkEmailHtml(
             <td class="section" colspan="2">
               <p class="title">Click the link below for your custom order!</p>
               <a href="${escapeHtml(params.ctaUrl)}" class="button" style="display:inline-block; padding:12px 20px; background:${baseColor}; color:#ffffff !important; text-decoration:none !important; border-radius:9999px; font-size:14px; font-weight:600;">Pay Now</a>
-              ${note ? `<p class="subtitle">${escapeHtml(note)}</p>` : ''}
             </td>
           </tr>
           <tr>
@@ -91,6 +91,7 @@ export function renderCustomOrderPaymentLinkEmailHtml(
               <span class="item-media">${imageMarkup}</span>
               <span class="item-text">
                 <span class="item-name">${escapeHtml(itemLabel)}</span>
+                ${note ? `<span class="item-desc">${escapeHtml(note)}</span>` : ''}
               </span>
             </td>
             <td class="item-price" align="right">${formatMoney(subtotalCents)}</td>
