@@ -29,7 +29,7 @@ export function renderOrderConfirmationEmailHtml(params: OrderConfirmationEmailP
   const shippingAddress = params.shippingAddress || '';
   const billingAddress = params.billingAddress || '';
   const paymentMethod = params.paymentMethod || 'Card';
-  const primaryCtaLabel = params.primaryCtaLabel || 'View order details';
+  const primaryCtaLabel = params.primaryCtaLabel || 'View Order Details';
   const baseFont = "'Playfair Display', Georgia, 'Times New Roman', serif";
   const baseColor = '#111827';
   const mutedColor = '#6b7280';
@@ -147,7 +147,7 @@ export function renderOrderConfirmationEmailHtml(params: OrderConfirmationEmailP
           ${itemRows}
           ${totalsRows}
           <tr>
-            <td class="section" colspan="2">
+            <td class="section" colspan="2" style="padding-top:12px;">
               <p class="subhead">Customer information</p>
             </td>
           </tr>

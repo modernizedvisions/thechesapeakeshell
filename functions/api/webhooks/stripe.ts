@@ -354,7 +354,7 @@ export const onRequestPost = async (context: {
             shipping: totalsForEmail.shippingCents,
             total: totalsForEmail.totalCents,
             primaryCtaUrl: confirmationUrl,
-            primaryCtaLabel: 'View order details',
+            primaryCtaLabel: 'View Order Details',
           });
           const text = renderOrderConfirmationEmailText({
             brandName: 'The Chesapeake Shell',
@@ -370,7 +370,7 @@ export const onRequestPost = async (context: {
             shipping: totalsForEmail.shippingCents,
             total: totalsForEmail.totalCents,
             primaryCtaUrl: confirmationUrl,
-            primaryCtaLabel: 'View order details',
+            primaryCtaLabel: 'View Order Details',
           });
 
         const subject = `The Chesapeake Shell — Order Confirmed (${orderLabel})`;
@@ -1227,7 +1227,7 @@ async function handleCustomOrderPayment(args: {
         shipping: totalsForEmail.shippingCents,
         total: totalsForEmail.totalCents,
         primaryCtaUrl: confirmationUrl,
-        primaryCtaLabel: 'View order details',
+        primaryCtaLabel: 'View Order Details',
       });
       const text = renderOrderConfirmationEmailText({
         brandName: 'The Chesapeake Shell',
@@ -1243,7 +1243,7 @@ async function handleCustomOrderPayment(args: {
         shipping: totalsForEmail.shippingCents,
         total: totalsForEmail.totalCents,
         primaryCtaUrl: confirmationUrl,
-        primaryCtaLabel: 'View order details',
+        primaryCtaLabel: 'View Order Details',
       });
 
       const subject = `The Chesapeake Shell — Order Confirmed (${orderLabel})`;
