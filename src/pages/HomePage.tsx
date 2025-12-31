@@ -185,104 +185,13 @@ export function HomePage() {
   };
 
   const customImagesToShow = customOrderImages.length ? customOrderImages : fallbackCustomShellImages;
-  const followBg = '#C0CBD8';
-  const contactBg = '#FAC6C8';
-  const customOrdersBg = '#F0E8D1';
-
-  // DEBUG: log divider layout/styling to diagnose seam/orientation issues. Remove after diagnosis.
-  useEffect(() => {
-    const ids = ['divider-hero', 'divider-custom-follow'];
-    ids.forEach((id) => {
-      const el = document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
-      if (!el) {
-        console.log(`[DEBUG wave] ${id} not found`);
-        return;
-      }
-      const rect = el.getBoundingClientRect();
-      const styles = window.getComputedStyle(el);
-      console.log(`[DEBUG wave] ${id}`, {
-        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-        marginTop: styles.marginTop,
-        marginBottom: styles.marginBottom,
-        paddingTop: styles.paddingTop,
-        paddingBottom: styles.paddingBottom,
-        display: styles.display,
-        lineHeight: styles.lineHeight,
-        backgroundColor: styles.backgroundColor,
-        className: el.className,
-        position: styles.position,
-        overflow: styles.overflow,
-      });
-      const svg = el.querySelector('svg');
-      if (svg) {
-        const svgRect = svg.getBoundingClientRect();
-        const svgStyles = window.getComputedStyle(svg);
-        console.log(`[DEBUG wave] ${id} svg`, {
-          rect: { x: svgRect.x, y: svgRect.y, width: svgRect.width, height: svgRect.height },
-          marginTop: svgStyles.marginTop,
-          marginBottom: svgStyles.marginBottom,
-          paddingTop: svgStyles.paddingTop,
-          paddingBottom: svgStyles.paddingBottom,
-          display: svgStyles.display,
-          lineHeight: svgStyles.lineHeight,
-          backgroundColor: svgStyles.backgroundColor,
-          transform: svgStyles.transform,
-        });
-      }
-    });
-
-    const containers = ['section-hero-shop', 'section-custom-orders', 'divider-bridge', 'section-follow'];
-    containers.forEach((id) => {
-      const el = document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
-      if (!el) {
-        console.log(`[DEBUG wave] ${id} not found`);
-        return;
-      }
-      const rect = el.getBoundingClientRect();
-      const styles = window.getComputedStyle(el);
-      console.log(`[DEBUG wave] container ${id}`, {
-        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-        marginTop: styles.marginTop,
-        marginBottom: styles.marginBottom,
-        paddingTop: styles.paddingTop,
-        paddingBottom: styles.paddingBottom,
-        display: styles.display,
-        lineHeight: styles.lineHeight,
-        backgroundColor: styles.backgroundColor,
-        className: el.className,
-        position: styles.position,
-        overflow: styles.overflow,
-      });
-    });
-
-    const roots = [
-      { label: 'documentElement', el: document.documentElement },
-      { label: 'body', el: document.body },
-    ];
-    roots.forEach(({ label, el }) => {
-      const styles = window.getComputedStyle(el);
-      console.log(`[DEBUG wave] root ${label}`, {
-        backgroundColor: styles.backgroundColor,
-        marginTop: styles.marginTop,
-        marginBottom: styles.marginBottom,
-        paddingTop: styles.paddingTop,
-        paddingBottom: styles.paddingBottom,
-      });
-    });
-  }, []);
+  const contactBg = '#C0CBD8';
 
   return (
     <div className="bg-white">
       <HomeHero heroImages={heroImages} heroRotationEnabled={heroRotationEnabled} />
 
-      <section
-        className="pt-0 pb-16"
-        style={{ backgroundColor: '#D1D2F9' }}
-        data-testid="section-hero-shop"
-      >
-        <div className="w-full leading-[0] m-0 p-0 overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
-          <WaveDivider direction="down" fill="#D1D2F9" className="block" dataTestId="divider-hero-shop" />
-        </div>
+      <section className="pt-0 pb-16 bg-white" data-testid="section-hero-shop">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-16">
             <h2 className="text-3xl font-serif font-semibold text-gray-900 mb-8 text-center">
               SHOP THE COLLECTION
@@ -353,19 +262,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <div
-        className="w-full leading-[0] m-0 p-0 overflow-hidden"
-        style={{ backgroundColor: '#D1D2F9' }}
-        data-testid="divider-shop-custom"
-      >
-        <WaveDivider direction="down" fill={customOrdersBg} className="block" dataTestId="divider-shop-custom" />
-      </div>
-
-      <section
-        className="w-full py-16 md:py-20"
-        style={{ backgroundColor: customOrdersBg }}
-        data-testid="section-custom-orders"
-      >
+      <section className="w-full py-16 md:py-20 bg-white" data-testid="section-custom-orders">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-10 md:mb-12">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">CUSTOM ORDERS</h2>
@@ -424,19 +321,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <div
-        className="w-full leading-[0] m-0 p-0 overflow-hidden"
-        style={{ backgroundColor: customOrdersBg }}
-        data-testid="divider-custom-follow"
-      >
-        <WaveDivider direction="down" fill={followBg} className="block" dataTestId="divider-custom-follow" />
-      </div>
-
-      <section
-        className="w-full py-16 md:py-20 -mt-px"
-        style={{ backgroundColor: followBg }}
-        data-testid="section-follow"
-      >
+      <section className="w-full py-16 md:py-20 bg-white" data-testid="section-follow">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center mb-6">
             <h2 className="text-2xl md:text-3xl font-semibold text-slate-900">FOLLOW ALONG</h2>
@@ -494,7 +379,7 @@ export function HomePage() {
 
       <div
         className="w-full leading-[0] m-0 p-0 overflow-hidden"
-        style={{ backgroundColor: followBg }}
+        style={{ backgroundColor: '#ffffff' }}
         data-testid="divider-contact-follow"
       >
         <WaveDivider
@@ -505,7 +390,7 @@ export function HomePage() {
         />
       </div>
 
-      <ContactForm />
+      <ContactForm backgroundColor={contactBg} />
     </div>
   );
 }
