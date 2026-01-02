@@ -4,6 +4,7 @@ export type AdminOrderItem = {
   quantity: number;
   priceCents: number;
   productImageUrl?: string | null;
+  imageUrl?: string | null;
 };
 
 export type AdminOrder = {

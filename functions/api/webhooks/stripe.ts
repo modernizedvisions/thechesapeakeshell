@@ -563,6 +563,7 @@ async function ensureOrdersSchema(db: D1Database) {
     product_id TEXT,
     quantity INTEGER,
     price_cents INTEGER,
+    image_url TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );`).run();
 
@@ -583,6 +584,12 @@ async function ensureOrdersSchema(db: D1Database) {
   await addColumnIfMissing('order_type', `ALTER TABLE orders ADD COLUMN order_type TEXT;`);
   await addColumnIfMissing('currency', `ALTER TABLE orders ADD COLUMN currency TEXT;`);
   await addColumnIfMissing('description', `ALTER TABLE orders ADD COLUMN description TEXT;`);
+
+  const itemColumns = await db.prepare(`PRAGMA table_info(order_items);`).all<{ name: string }>();
+  const itemNames = (itemColumns.results || []).map((c) => c.name);
+  if (!itemNames.includes('image_url')) {
+    await db.prepare(`ALTER TABLE order_items ADD COLUMN image_url TEXT;`).run();
+  }
 
   await db
     .prepare(
@@ -1181,7 +1188,12 @@ async function handleCustomOrderPayment(args: {
     orderType: 'custom',
     description,
     lineItemsOverride: [
-      { productId: `custom_order:${customOrder.id}`, quantity: 1, priceCents: amount },
+      {
+        productId: `custom_order:${customOrder.id}`,
+        quantity: 1,
+        priceCents: amount,
+        imageUrl: customOrder.image_url || null,
+      },
       { productId: 'shipping', quantity: 1, priceCents: shippingCents },
     ],
     totalCentsOverride: totalCents,
@@ -1412,7 +1424,7 @@ async function insertStandardOrderAndItems(args: {
   displayOrderIdOverride?: string | null;
   orderType?: string | null;
   description?: string | null;
-  lineItemsOverride?: { productId: string; quantity: number; priceCents: number }[];
+  lineItemsOverride?: { productId: string; quantity: number; priceCents: number; imageUrl?: string | null }[];
   totalCentsOverride?: number;
 }): Promise<{ orderId: string; displayOrderId: string } | null> {
   const {
@@ -1526,18 +1538,39 @@ async function insertStandardOrderAndItems(args: {
     throw new Error(`Order insert failed for session ${session.id}`);
   }
 
-  const preparedLineItems =
-    lineItemsOverride ||
-    filterNonShippingLineItems(session.line_items?.data || []).map((line) => {
-      const qty = line.quantity ?? 1;
-      const priceCents = line.price?.unit_amount ?? 0;
-      const productIdFromPrice =
-        typeof line.price?.product === 'string'
-          ? line.price.product
-          : (line.price?.product as Stripe.Product | undefined)?.id;
-      const resolvedProductId = productIdFromPrice || productId || line.price?.id || 'unknown';
-      return { productId: resolvedProductId as string, quantity: qty, priceCents };
-    });
+  const preparedLineItems = lineItemsOverride
+    ? lineItemsOverride
+    : await (async () => {
+        const items: Array<{ productId: string; quantity: number; priceCents: number; imageUrl?: string | null }> = [];
+        const lines = filterNonShippingLineItems(session.line_items?.data || []);
+        for (const line of lines) {
+          const qty = line.quantity ?? 1;
+          const priceCents = line.price?.unit_amount ?? 0;
+          const productIdFromPrice =
+            typeof line.price?.product === 'string'
+              ? line.price.product
+              : (line.price?.product as Stripe.Product | undefined)?.id;
+          const resolvedProductId = productIdFromPrice || productId || line.price?.id || 'unknown';
+          const productObj =
+            line.price?.product && typeof line.price.product !== 'string'
+              ? (line.price.product as Stripe.Product)
+              : null;
+          let imageUrl =
+            productObj?.images?.[0] ||
+            (line.price as any)?.product_data?.images?.[0] ||
+            null;
+          if (!imageUrl && resolvedProductId) {
+            imageUrl = await resolveProductImageUrl(db, resolvedProductId as string);
+          }
+          items.push({
+            productId: resolvedProductId as string,
+            quantity: qty,
+            priceCents,
+            imageUrl,
+          });
+        }
+        return items;
+      })();
 
   if (preparedLineItems.length) {
     for (const li of preparedLineItems) {
@@ -1545,11 +1578,18 @@ async function insertStandardOrderAndItems(args: {
       const itemResult = await db
         .prepare(
           `
-            INSERT INTO order_items (id, order_id, product_id, quantity, price_cents)
-            VALUES (?, ?, ?, ?, ?);
+            INSERT INTO order_items (id, order_id, product_id, quantity, price_cents, image_url)
+            VALUES (?, ?, ?, ?, ?, ?);
           `
         )
-        .bind(itemId, orderId, li.productId, li.quantity ?? 1, li.priceCents ?? 0)
+        .bind(
+          itemId,
+          orderId,
+          li.productId,
+          li.quantity ?? 1,
+          li.priceCents ?? 0,
+          (li as any).imageUrl ?? null
+        )
         .run();
 
       if (!itemResult.success) {
@@ -1559,11 +1599,12 @@ async function insertStandardOrderAndItems(args: {
     console.log('[stripe webhook] inserted order and items', { orderId, displayOrderId, items: preparedLineItems.length });
   } else if (productId) {
     const itemId = crypto.randomUUID();
+    const fallbackImageUrl = await resolveProductImageUrl(db, productId);
     const itemResult = await db
       .prepare(
         `
-          INSERT INTO order_items (id, order_id, product_id, quantity, price_cents)
-          VALUES (?, ?, ?, ?, ?);
+          INSERT INTO order_items (id, order_id, product_id, quantity, price_cents, image_url)
+          VALUES (?, ?, ?, ?, ?, ?);
         `
       )
       .bind(
@@ -1573,7 +1614,8 @@ async function insertStandardOrderAndItems(args: {
         quantityFromMeta || 1,
         session.amount_subtotal && (quantityFromMeta || 1) > 0
           ? Math.floor(session.amount_subtotal / (quantityFromMeta || 1))
-          : 0
+          : 0,
+        fallbackImageUrl
       )
       .run();
 

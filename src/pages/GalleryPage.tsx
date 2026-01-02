@@ -9,6 +9,8 @@ export function GalleryPage() {
   const [isLoadingSold, setIsLoadingSold] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { images: galleryImages, isLoading: isLoadingGallery } = useGalleryImages();
+  const getSoldCardTitle = (item: Product) =>
+    item.id?.startsWith('custom_order:') ? 'Custom Order' : item.name;
 
   useEffect(() => {
     const loadSold = async () => {
@@ -91,7 +93,7 @@ export function GalleryPage() {
                         {item.imageUrl ? (
                           <img
                             src={item.imageUrl}
-                            alt={item.name}
+                            alt={getSoldCardTitle(item)}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -102,7 +104,9 @@ export function GalleryPage() {
                       </div>
                       <div className="p-3">
                         <div className="flex items-center justify-between gap-3 mb-1">
-                          <h3 className="text-sm font-serif font-medium text-slate-900 truncate">{item.name}</h3>
+                          <h3 className="text-sm font-serif font-medium text-slate-900 truncate">
+                            {getSoldCardTitle(item)}
+                          </h3>
                           <span className="text-sm font-serif font-medium text-slate-800 whitespace-nowrap">SOLD</span>
                         </div>
                         {item.collection && (

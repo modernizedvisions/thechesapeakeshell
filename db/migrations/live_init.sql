@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   product_id TEXT,
   quantity INTEGER,
   price_cents INTEGER,
+  image_url TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 

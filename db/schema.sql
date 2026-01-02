@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS order_items (
   order_id TEXT,
   product_id TEXT,
   quantity INTEGER,
-  price_cents INTEGER
+  price_cents INTEGER,
+  image_url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS messages (

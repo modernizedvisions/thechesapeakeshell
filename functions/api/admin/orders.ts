@@ -30,6 +30,8 @@ type OrderItemRow = {
   price_cents: number;
   product_name: string | null;
   product_image_url?: string | null;
+  item_image_url?: string | null;
+  custom_order_image_url?: string | null;
 };
 
 export const onRequestGet = async (context: { env: { DB: D1Database } }): Promise<Response> => {
@@ -84,6 +86,9 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
   const hasImageUrlsJson = productCols.has('image_urls_json');
   const hasShippingCents = columnNames.includes('shipping_cents');
   const orderIds = (orderRows || []).map((o) => o.id);
+  const itemColumns = await context.env.DB.prepare(`PRAGMA table_info(order_items);`).all<{ name: string }>();
+  const itemCols = new Set((itemColumns.results || []).map((c) => c.name));
+  const hasItemImageUrl = itemCols.has('image_url');
   let itemsByOrder: Record<string, OrderItemRow[]> = {};
 
     if (orderIds.length) {
@@ -94,13 +99,21 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
           )`
         : `p.image_url`;
 
+      const itemImageSelect = hasItemImageUrl ? 'oi.image_url' : 'NULL';
+      const productImageSelect = hasItemImageUrl
+        ? `COALESCE(oi.image_url, co.image_url, ${imageSelect})`
+        : `COALESCE(co.image_url, ${imageSelect})`;
+
       const itemsStmt = context.env.DB.prepare(
         `
         SELECT oi.*,
                p.name AS product_name,
-               ${imageSelect} AS product_image_url
+               ${itemImageSelect} AS item_image_url,
+               co.image_url AS custom_order_image_url,
+               ${productImageSelect} AS product_image_url
         FROM order_items oi
         LEFT JOIN products p ON oi.product_id = p.${joinColumn}
+        LEFT JOIN custom_orders co ON oi.product_id = ('custom_order:' || co.id)
         WHERE oi.order_id IN (${placeholders});
       `
       ).bind(...orderIds);
@@ -131,6 +144,7 @@ export const onRequestGet = async (context: { env: { DB: D1Database } }): Promis
         quantity: i.quantity,
         priceCents: i.price_cents,
         productImageUrl: i.product_image_url ?? null,
+        imageUrl: i.item_image_url ?? i.custom_order_image_url ?? null,
       })),
     }));
 

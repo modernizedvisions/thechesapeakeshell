@@ -30,6 +30,10 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
     const pid = (item.productId || '').toLowerCase();
     return name.includes('shipping') || pid === 'shipping' || pid === 'ship' || pid === 'shipping_line';
   };
+  const isCustomOrderItem = (item: any) => {
+    const pid = (item.productId || '').toLowerCase();
+    return pid.startsWith('custom_order:');
+  };
 
   const rawItems = useMemo(() => {
     if (Array.isArray(order.items) && order.items.length) return order.items;
@@ -49,7 +53,9 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
         (i) =>
           i.productId &&
           !isShippingItem(i) &&
+          !isCustomOrderItem(i) &&
           !i.productImageUrl &&
+          !i.imageUrl &&
           !itemImages[i.productId as string]
       );
       for (const itm of missing) {
@@ -81,7 +87,10 @@ export function OrderDetailsModal({ open, order, onClose }: OrderDetailsModalPro
     .filter((i) => !isShippingItem(i))
     .map((i) => ({
       ...i,
-      productImageUrl: i.productImageUrl || (i.productId ? itemImages[i.productId] : undefined),
+      productImageUrl:
+        i.imageUrl ||
+        i.productImageUrl ||
+        (i.productId ? itemImages[i.productId] : undefined),
     }));
 
   const lineTotal = (qty: number, priceCents: number) => formatCurrency((qty || 0) * (priceCents || 0));
