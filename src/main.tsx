@@ -6,6 +6,8 @@ import { HomePage } from './pages/HomePage';
 import { ShopPage } from './pages/ShopPage';
 import { GalleryPage } from './pages/GalleryPage';
 import { AboutPage } from './pages/AboutPage';
+import { TermsPage } from './pages/TermsPage';
+import { PrivacyPage } from './pages/PrivacyPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { CheckoutReturnPage } from './pages/CheckoutReturnPage';
 import { AdminPage } from './pages/AdminPage';
@@ -25,6 +27,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="product/:productId" element={<ProductDetailPage />} />
           <Route path="gallery" element={<GalleryPage />} />
           <Route path="about" element={<AboutPage />} />
+          <Route path="terms" element={<TermsPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="checkout/return" element={<CheckoutReturnPage />} />
           <Route path="admin" element={<AdminPage />} />

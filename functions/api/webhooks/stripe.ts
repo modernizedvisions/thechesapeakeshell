@@ -12,6 +12,11 @@ import {
   renderOwnerNewSaleEmailText,
   type OwnerNewSaleItem,
 } from '../../_lib/ownerNewSaleEmail';
+import {
+  formatOwnerTextAlert,
+  sendOwnerText,
+  shouldSendOwnerText,
+} from '../../_lib/ownerTextAlert';
 import { resolveCustomEmailTotals, resolveStandardEmailTotals } from '../../_lib/emailTotals';
 import { calculateShippingCents } from '../../_lib/shipping';
 import {
@@ -46,6 +51,10 @@ type Env = {
   PUBLIC_SITE_URL?: string;
   VITE_PUBLIC_SITE_URL?: string;
   PUBLIC_IMAGES_BASE_URL?: string;
+  OWNER_TEXT_ENABLED?: string;
+  OWNER_TEXT_TO?: string;
+  OWNER_TEXT_SUBJECT?: string;
+  OWNER_TEXT_FROM?: string;
 };
 
 const createStripeClient = (secretKey: string) =>
@@ -410,7 +419,6 @@ export const onRequestPost = async (context: {
 
       if (!ownerTo) {
         console.warn('[stripe webhook] owner email missing; skipping receipt email');
-        return new Response('ok', { status: 200 });
       }
 
       if (insertResult && !invoiceId && !customOrderId && !customSource) {
@@ -494,20 +502,32 @@ export const onRequestPost = async (context: {
             stripeUrl,
           });
 
-          const emailResult = await sendEmail(
-            {
-              to: ownerTo,
-              subject: `NEW SALE - The Chesapeake Shell (${orderLabel})`,
-              html,
-              text,
-            },
-            env
-          );
-          if (!emailResult.ok) {
-            console.error('[stripe webhook] owner receipt email failed', emailResult.error);
+          if (ownerTo) {
+            const emailResult = await sendEmail(
+              {
+                to: ownerTo,
+                subject: `NEW SALE - The Chesapeake Shell (${orderLabel})`,
+                html,
+                text,
+              },
+              env
+            );
+            if (!emailResult.ok) {
+              console.error('[stripe webhook] owner receipt email failed', emailResult.error);
+            }
           }
         } catch (emailError) {
           console.error('[stripe webhook] owner receipt email error', emailError);
+        }
+
+        if (shouldSendOwnerText(env)) {
+          const alert = formatOwnerTextAlert({
+            env,
+            orderNumber: orderLabel,
+            totalLabel: totals.total,
+            adminUrl,
+          });
+          await sendOwnerText(env, { ...alert, orderNumber: orderLabel });
         }
       }
         break;
@@ -735,6 +755,7 @@ async function handleCustomInvoicePayment(args: {
   const invoiceAmount = formatAmount(amountTotal, currency);
   const siteUrl = (env.PUBLIC_SITE_URL || env.VITE_PUBLIC_SITE_URL || '').replace(/\/+$/, '');
   const invoiceLink = siteUrl ? `${siteUrl}/invoice/${invoiceId}` : `/invoice/${invoiceId}`;
+  const adminUrl = siteUrl ? `${siteUrl}/admin` : '/admin';
 
   if (customerEmail) {
     try {
@@ -765,7 +786,6 @@ async function handleCustomInvoicePayment(args: {
   const ownerTo = env.RESEND_OWNER_TO || env.EMAIL_OWNER_TO;
   if (!ownerTo) {
     console.warn('[custom invoice] owner email missing; skipping receipt email');
-    return;
   }
 
   const subtotalCents = Math.max(0, amountTotal - shippingCents);
@@ -819,25 +839,37 @@ async function handleCustomInvoicePayment(args: {
       currency,
     },
     createdAtIso: now,
-    adminUrl: siteUrl ? `${siteUrl}/admin` : undefined,
+    adminUrl: adminUrl || undefined,
     description,
   });
 
   try {
-    const emailResult = await sendEmail(
-      {
-        to: ownerTo,
-        subject: emailPayload.subject,
-        html: emailPayload.html,
-        text: emailPayload.text,
-      },
-      env
-    );
-    if (!emailResult.ok) {
-      console.error('[custom invoice] owner email failed', emailResult.error);
+    if (ownerTo) {
+      const emailResult = await sendEmail(
+        {
+          to: ownerTo,
+          subject: emailPayload.subject,
+          html: emailPayload.html,
+          text: emailPayload.text,
+        },
+        env
+      );
+      if (!emailResult.ok) {
+        console.error('[custom invoice] owner email failed', emailResult.error);
+      }
     }
   } catch (emailError) {
     console.error('[custom invoice] owner email error', emailError);
+  }
+
+  if (shouldSendOwnerText(env)) {
+    const alert = formatOwnerTextAlert({
+      env,
+      orderNumber: displayOrderId,
+      totalLabel: invoiceAmount,
+      adminUrl,
+    });
+    await sendOwnerText(env, { ...alert, orderNumber: displayOrderId });
   }
 }
 
@@ -1311,7 +1343,6 @@ async function handleCustomOrderPayment(args: {
   const ownerTo = env.RESEND_OWNER_TO || env.EMAIL_OWNER_TO;
   if (!ownerTo) {
     console.warn('[custom order] owner email missing; skipping receipt email');
-    return;
   }
 
   if (!insertResult) return;
@@ -1392,20 +1423,32 @@ async function handleCustomOrderPayment(args: {
       stripeUrl,
     });
 
-    const emailResult = await sendEmail(
-      {
-        to: ownerTo,
-        subject: `NEW SALE - The Chesapeake Shell (${orderLabel})`,
-        html,
-        text,
-      },
-      env
-    );
-    if (!emailResult.ok) {
-      console.error('[custom order] owner receipt email failed', emailResult.error);
+    if (ownerTo) {
+      const emailResult = await sendEmail(
+        {
+          to: ownerTo,
+          subject: `NEW SALE - The Chesapeake Shell (${orderLabel})`,
+          html,
+          text,
+        },
+        env
+      );
+      if (!emailResult.ok) {
+        console.error('[custom order] owner receipt email failed', emailResult.error);
+      }
     }
   } catch (emailError) {
     console.error('[custom order] owner receipt email error', emailError);
+  }
+
+  if (shouldSendOwnerText(env)) {
+    const alert = formatOwnerTextAlert({
+      env,
+      orderNumber: orderLabel,
+      totalLabel: ownerTotals.total,
+      adminUrl: adminLink || '/admin',
+    });
+    await sendOwnerText(env, { ...alert, orderNumber: orderLabel });
   }
 }
 

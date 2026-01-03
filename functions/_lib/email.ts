@@ -5,6 +5,7 @@ export type SendEmailArgs = {
   text?: string;
   replyTo?: string;
   attachments?: EmailAttachment[];
+  logTo?: string | string[];
 };
 
 export type EmailEnv = {
@@ -55,7 +56,8 @@ export async function sendEmail(
   }
 
   try {
-    console.log('[email]', { from, to: args.to, subject: args.subject });
+    const logTo = args.logTo ?? args.to;
+    console.log('[email]', { from, to: logTo, subject: args.subject });
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',

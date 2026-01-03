@@ -141,7 +141,15 @@ export function SiteLayout() {
 
       <footer className="bg-white border-t border-gray-200 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <div className="flex items-center gap-4 text-sm font-serif text-gray-600">
+              <Link to="/terms" className="hover:text-gray-900 transition-colors">
+                Terms
+              </Link>
+              <Link to="/privacy" className="hover:text-gray-900 transition-colors">
+                Privacy
+              </Link>
+            </div>
             <p className="text-sm text-gray-500 mb-2">
               &copy; 2026 The Chesapeake Shell. All rights reserved.
             </p>
